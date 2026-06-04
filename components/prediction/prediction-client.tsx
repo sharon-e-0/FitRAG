@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Line,
   LineChart,
@@ -29,6 +30,7 @@ const activityLevels: { value: ActivityLevel; label: string }[] = [
 ];
 
 export function PredictionClient() {
+  const router = useRouter();
   const [sex, setSex] = useState<BiologicalSex>("female");
   const [activityLevel, setActivityLevel] = useState<ActivityLevel>("moderate");
   const [age, setAge] = useState(24);
@@ -53,7 +55,8 @@ export function PredictionClient() {
         ]);
 
         if (profileResponse.status === 401 || weightResponse.status === 401) {
-          throw new Error("Login is required to load profile and weight logs.");
+          router.replace("/login?next=/profile");
+          throw new Error("로그인이 필요합니다. 프로필을 저장하려면 다시 로그인해 주세요.");
         }
 
         if (!profileResponse.ok) {
@@ -112,9 +115,7 @@ export function PredictionClient() {
               ? error.message
               : "Could not load profile and weight logs.";
           setProfileStatus(message);
-          setWeightLogStatus(
-            error instanceof Error ? error.message : "Could not load weight logs."
-          );
+          setWeightLogStatus(message.includes("로그인") ? "" : message);
         }
       }
     }
@@ -124,21 +125,26 @@ export function PredictionClient() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [router]);
 
   const prediction = useMemo(
-    () =>
-      predictWeight({
-        sex,
-        age,
-        heightCm,
-        currentWeightKg,
-        targetWeightKg,
-        activityLevel,
-        avgDailyIntakeCalories,
-        avgDailyExerciseCalories,
-        startDate: new Date()
-      }),
+    () => {
+      try {
+        return predictWeight({
+          sex,
+          age,
+          heightCm,
+          currentWeightKg,
+          targetWeightKg,
+          activityLevel,
+          avgDailyIntakeCalories,
+          avgDailyExerciseCalories,
+          startDate: new Date()
+        });
+      } catch {
+        return null;
+      }
+    },
     [
       sex,
       age,
@@ -153,7 +159,7 @@ export function PredictionClient() {
 
   const chartData = [
     { day: "Today", weight: currentWeightKg },
-    ...prediction.points
+    ...(prediction?.points ?? [])
       .filter((point) => point.day % 5 === 0 || point.day === 1 || point.day === 30)
       .map((point) => ({
         day: `${point.day}d`,
@@ -171,15 +177,15 @@ export function PredictionClient() {
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <PredictionCard label="BMR" value={`${prediction.bmr} kcal`} />
-        <PredictionCard label="TDEE" value={`${prediction.tdee} kcal`} />
+        <PredictionCard label="BMR" value={prediction ? `${prediction.bmr} kcal` : "-"} />
+        <PredictionCard label="TDEE" value={prediction ? `${prediction.tdee} kcal` : "-"} />
         <PredictionCard
           label="7 days"
-          value={`${prediction.sevenDay.predictedWeightKg} kg`}
+          value={prediction ? `${prediction.sevenDay.predictedWeightKg} kg` : "-"}
         />
         <PredictionCard
           label="30 days"
-          value={`${prediction.thirtyDay.predictedWeightKg} kg`}
+          value={prediction ? `${prediction.thirtyDay.predictedWeightKg} kg` : "-"}
         />
       </section>
 
@@ -188,7 +194,8 @@ export function PredictionClient() {
           <CardHeader>
             <CardTitle>Body profile</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
+            <form className="space-y-4" onSubmit={handleSaveProfileAndWeight}>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Sex</span>
@@ -209,29 +216,6 @@ export function PredictionClient() {
                 step={0.1}
                 onChange={setCurrentWeightKg}
               />
-              <form className="space-y-2" onSubmit={handleSaveProfileAndWeight}>
-                <Button
-                  className="w-full"
-                  type="submit"
-                  disabled={
-                    isSavingProfile ||
-                    isSavingWeight ||
-                    currentWeightKg <= 0 ||
-                    heightCm <= 0 ||
-                    targetWeightKg <= 0
-                  }
-                >
-                  {isSavingProfile || isSavingWeight
-                    ? "Saving..."
-                    : "Save profile & current weight"}
-                </Button>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  {profileStatus}
-                </p>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  {weightLogStatus}
-                </p>
-              </form>
               <NumberField
                 label="Target kg / 목표 체중"
                 value={targetWeightKg}
@@ -265,6 +249,32 @@ export function PredictionClient() {
                 </select>
               </label>
             </div>
+            <div className="space-y-2">
+              <Button
+                className="w-full"
+                type="submit"
+                disabled={
+                  isSavingProfile ||
+                  isSavingWeight ||
+                  currentWeightKg <= 0 ||
+                  heightCm <= 0 ||
+                  targetWeightKg <= 0
+                }
+              >
+                {isSavingProfile || isSavingWeight
+                  ? "Saving..."
+                  : "Save profile & current weight"}
+              </Button>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {profileStatus}
+              </p>
+              {weightLogStatus ? (
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {weightLogStatus}
+                </p>
+              ) : null}
+            </div>
+            </form>
           </CardContent>
         </Card>
 
@@ -272,34 +282,46 @@ export function PredictionClient() {
           <CardHeader>
             <CardTitle>30 day forecast</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Daily balance {prediction.dailyEnergyBalance} kcal,
+              {prediction
+                ? `Daily balance ${prediction.dailyEnergyBalance} kcal, ${prediction.dailyWeightChangeKg} kg/day`
+                : "Enter valid height, weight, and calorie values to preview the forecast."}
               {" "}
-              {prediction.dailyWeightChangeKg} kg/day
             </p>
           </CardHeader>
           <CardContent>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ left: -18, right: 16, top: 8 }}>
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} domain={["dataMin - 1", "dataMax + 1"]} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="weight"
-                    stroke="#0f766e"
-                    strokeWidth={3}
-                    dot={{ r: 4 }}
-                    name="Predicted kg"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {prediction ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ left: 16, right: 24, top: 12, bottom: 8 }}>
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      domain={["dataMin - 1", "dataMax + 1"]}
+                      width={52}
+                    />
+                    <Tooltip />
+                    <Line
+                      type="monotone"
+                      dataKey="weight"
+                      stroke="#FF7E67"
+                      strokeWidth={3}
+                      dot={{ r: 4 }}
+                      name="Predicted kg"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-3xl border border-[#F0EDE9] bg-[#FAF8F5] px-4 text-center text-sm leading-6 text-muted-foreground">
+                  키, 현재 체중, 목표 체중, 칼로리를 입력하면 예측 그래프가 표시됩니다.
+                </div>
+              )}
             </div>
             <div className="mt-4 rounded-md border bg-muted/30 p-4 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground">Target arrival</span>
                 <span className="font-medium">
-                  {prediction.targetReachDate
+                  {prediction?.targetReachDate
                     ? `${prediction.targetReachDate} (${prediction.targetReachDays} days)`
                     : "Not reachable with current balance"}
                 </span>
@@ -343,7 +365,8 @@ export function PredictionClient() {
       });
 
       if (profileResponse.status === 401 || weightResponse.status === 401) {
-        throw new Error("Login is required to save profile and weight.");
+        router.replace("/login?next=/profile");
+        throw new Error("로그인이 필요합니다. 프로필을 저장하려면 다시 로그인해 주세요.");
       }
 
       if (!profileResponse.ok) {
@@ -368,7 +391,11 @@ export function PredictionClient() {
         error instanceof Error ? error.message : "Failed to save profile."
       );
       setWeightLogStatus(
-        error instanceof Error ? error.message : "Failed to save weight."
+        error instanceof Error && error.message.includes("로그인")
+          ? ""
+          : error instanceof Error
+            ? error.message
+            : "Failed to save weight."
       );
     } finally {
       setIsSavingProfile(false);
@@ -394,8 +421,14 @@ function NumberField({
       <Input
         type="number"
         step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        min="0"
+        inputMode="decimal"
+        value={value > 0 ? value : ""}
+        placeholder="입력"
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) =>
+          onChange(event.target.value === "" ? 0 : Number(event.target.value))
+        }
       />
     </label>
   );

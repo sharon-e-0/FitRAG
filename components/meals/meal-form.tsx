@@ -72,10 +72,11 @@ export function MealForm() {
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setStatus(null);
     setIsSubmitting(true);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const rawText = String(formData.get("rawText") ?? "").trim();
     const mealType = String(formData.get("mealType") ?? "other");
     const eatenAt = String(formData.get("eatenAt") ?? "");
@@ -119,7 +120,7 @@ export function MealForm() {
         });
       }
 
-      event.currentTarget.reset();
+      form.reset();
       setStatus("Meal saved successfully.");
       router.push("/dashboard");
       router.refresh();

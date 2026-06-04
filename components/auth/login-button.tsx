@@ -9,7 +9,9 @@ import { createClient } from "@/lib/supabase/client";
 export function LoginButton() {
   const searchParams = useSearchParams();
   const [errorMessage, setErrorMessage] = useState<string | null>(
-    searchParams.get("config") === "missing_supabase_env"
+    searchParams.get("auth_error")
+      ? `Supabase login failed: ${searchParams.get("auth_error")}`
+      : searchParams.get("config") === "missing_supabase_env"
       ? "Supabase environment variables are missing in this deployment."
       : searchParams.get("config") === "supabase_middleware_error"
         ? "Supabase middleware failed. Check the Supabase URL and anon key in Vercel Production environment variables."

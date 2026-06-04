@@ -10,13 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
 import type { FoodAnalysisResult } from "@/types/food-analysis";
 
-const supportedImageTypes = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif"
-]);
+const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const previewableImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxSelectedImageBytes = 12 * 1024 * 1024;
 const maxUploadImageBytes = 4 * 1024 * 1024;
@@ -89,7 +83,7 @@ export function MealForm() {
     if (!mimeType || !supportedImageTypes.has(mimeType)) {
       event.target.value = "";
       setSelectedImage(null);
-      setStatus("Use a JPEG, PNG, WEBP, HEIC, or HEIF image.");
+      setStatus("Use a JPEG, PNG, or WEBP image. HEIC photos need to be converted first.");
       return;
     }
 
@@ -272,14 +266,14 @@ export function MealForm() {
               <div>
                 <p className="text-sm font-medium">Meal image</p>
                 <p className="text-xs text-muted-foreground">
-                  JPEG, PNG, WEBP, HEIC, or HEIF up to 12MB.
+                  JPEG, PNG, or WEBP up to 12MB.
                 </p>
               </div>
               <Input
                 ref={imageInputRef}
                 name="image"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
                 className="sm:max-w-xs"
                 onChange={onImageChange}
               />
@@ -349,7 +343,11 @@ async function runMealAnalysis(foodName: string, image: File | null) {
   }
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "Failed to analyze meal.");
+    const detail =
+      typeof payload.detail === "string" && payload.detail
+        ? ` ${payload.detail}`
+        : "";
+    throw new Error(`${payload.error ?? "Failed to analyze meal."}${detail}`);
   }
 
   return payload as FoodAnalysisResult;

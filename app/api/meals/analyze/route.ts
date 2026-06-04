@@ -12,9 +12,7 @@ const MAX_IMAGE_SIZE_BYTES = 12 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set([
   "image/jpeg",
   "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif"
+  "image/webp"
 ]);
 
 export async function POST(request: NextRequest) {
@@ -51,7 +49,13 @@ export async function POST(request: NextRequest) {
 
     console.error("[food-analyze]", error);
 
-    return NextResponse.json({ error: getFoodAnalyzeErrorMessage(error) }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: getFoodAnalyzeErrorMessage(error),
+        detail: getSafeErrorDetail(error)
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -89,7 +93,7 @@ async function parseMultipartRequest(request: NextRequest): Promise<FoodAnalysis
 
     if (!mimeType || !SUPPORTED_IMAGE_TYPES.has(mimeType)) {
       throw new RequestParseError(
-        "Unsupported image type. Use JPEG, PNG, WEBP, HEIC, or HEIF.",
+        "Unsupported image type. Use JPEG, PNG, or WEBP. HEIC photos need to be converted first.",
         400
       );
     }
@@ -134,14 +138,6 @@ function getImageMimeType(file: File) {
     return "image/webp";
   }
 
-  if (extension === "heic") {
-    return "image/heic";
-  }
-
-  if (extension === "heif") {
-    return "image/heif";
-  }
-
   return "";
 }
 
@@ -157,10 +153,16 @@ function getFoodAnalyzeErrorMessage(error: unknown) {
   }
 
   if (/invalid|unsupported|image|mime/i.test(message)) {
-    return "Gemini could not analyze this image. Try a clearer JPEG, PNG, WEBP, HEIC, or HEIF image.";
+    return "Gemini could not analyze this image. Try a clearer JPEG, PNG, or WEBP image.";
   }
 
   return "Failed to analyze food with Gemini.";
+}
+
+function getSafeErrorDetail(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return message.slice(0, 500);
 }
 
 class RequestParseError extends Error {

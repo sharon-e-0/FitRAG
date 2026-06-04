@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Activity, Bot, Camera, LineChart } from "lucide-react";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,27 @@ const features = [
   }
 ];
 
-export default function HomePage() {
+type HomePageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
+export default function HomePage({ searchParams }: HomePageProps) {
+  const code = getFirstSearchParam(searchParams?.code);
+  const authError = getFirstSearchParam(
+    searchParams?.error_description ?? searchParams?.error
+  );
+
+  if (code) {
+    const next = getSafeNextPath(getFirstSearchParam(searchParams?.next));
+    redirect(
+      `/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`
+    );
+  }
+
+  if (authError) {
+    redirect(`/login?auth_error=${encodeURIComponent(authError)}`);
+  }
+
   return (
     <AppShell>
       <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
@@ -82,6 +103,18 @@ export default function HomePage() {
       </section>
     </AppShell>
   );
+}
+
+function getFirstSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function getSafeNextPath(next: string | undefined) {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) {
+    return "/dashboard";
+  }
+
+  return next;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

@@ -8,8 +8,14 @@ import type { FoodAnalysisRequest } from "@/types/food-analysis";
 
 export const runtime = "nodejs";
 
-const MAX_IMAGE_SIZE_BYTES = 6 * 1024 * 1024;
-const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_IMAGE_SIZE_BYTES = 12 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif"
+]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,10 +51,7 @@ export async function POST(request: NextRequest) {
 
     console.error("[food-analyze]", error);
 
-    return NextResponse.json(
-      { error: "Failed to analyze food." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getFoodAnalyzeErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -82,17 +85,22 @@ async function parseMultipartRequest(request: NextRequest): Promise<FoodAnalysis
   let image: FoodAnalysisRequest["image"];
 
   if (imageValue instanceof File && imageValue.size > 0) {
-    if (!SUPPORTED_IMAGE_TYPES.has(imageValue.type)) {
-      throw new RequestParseError("Unsupported image type. Use JPEG, PNG, or WEBP.", 400);
+    const mimeType = getImageMimeType(imageValue);
+
+    if (!mimeType || !SUPPORTED_IMAGE_TYPES.has(mimeType)) {
+      throw new RequestParseError(
+        "Unsupported image type. Use JPEG, PNG, WEBP, HEIC, or HEIF.",
+        400
+      );
     }
 
     if (imageValue.size > MAX_IMAGE_SIZE_BYTES) {
-      throw new RequestParseError("Image file must be 6MB or smaller.", 400);
+      throw new RequestParseError("Image file must be 12MB or smaller.", 400);
     }
 
     const buffer = Buffer.from(await imageValue.arrayBuffer());
     image = {
-      mimeType: imageValue.type,
+      mimeType,
       base64: buffer.toString("base64")
     };
   }
@@ -105,6 +113,54 @@ async function parseMultipartRequest(request: NextRequest): Promise<FoodAnalysis
     foodName,
     image
   };
+}
+
+function getImageMimeType(file: File) {
+  if (file.type) {
+    return file.type;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (extension === "png") {
+    return "image/png";
+  }
+
+  if (extension === "webp") {
+    return "image/webp";
+  }
+
+  if (extension === "heic") {
+    return "image/heic";
+  }
+
+  if (extension === "heif") {
+    return "image/heif";
+  }
+
+  return "";
+}
+
+function getFoodAnalyzeErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("GOOGLE_GENERATIVE_AI_API_KEY")) {
+    return "Gemini API key is not configured.";
+  }
+
+  if (/quota|rate limit|429/i.test(message)) {
+    return "Gemini API rate limit or quota was exceeded.";
+  }
+
+  if (/invalid|unsupported|image|mime/i.test(message)) {
+    return "Gemini could not analyze this image. Try a clearer JPEG, PNG, WEBP, HEIC, or HEIF image.";
+  }
+
+  return "Failed to analyze food with Gemini.";
 }
 
 class RequestParseError extends Error {

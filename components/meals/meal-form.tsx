@@ -10,6 +10,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
 import type { FoodAnalysisResult } from "@/types/food-analysis";
 
+const supportedImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif"
+]);
+const previewableImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const maxSelectedImageBytes = 12 * 1024 * 1024;
+const maxUploadImageBytes = 4 * 1024 * 1024;
+const maxUploadImageDimension = 1600;
+
 const mealTypes = [
   { value: "breakfast", label: "Breakfast" },
   { value: "lunch", label: "Lunch" },
@@ -53,6 +65,11 @@ export function MealForm() {
       return;
     }
 
+    if (!previewableImageTypes.has(selectedImage.type)) {
+      setPreviewUrl(null);
+      return;
+    }
+
     const objectUrl = URL.createObjectURL(selectedImage);
     setPreviewUrl(objectUrl);
 
@@ -67,17 +84,19 @@ export function MealForm() {
       return;
     }
 
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    const mimeType = getImageMimeType(file);
+
+    if (!mimeType || !supportedImageTypes.has(mimeType)) {
       event.target.value = "";
       setSelectedImage(null);
-      setStatus("Use a JPEG, PNG, or WEBP image.");
+      setStatus("Use a JPEG, PNG, WEBP, HEIC, or HEIF image.");
       return;
     }
 
-    if (file.size > 6 * 1024 * 1024) {
+    if (file.size > maxSelectedImageBytes) {
       event.target.value = "";
       setSelectedImage(null);
-      setStatus("Image file must be 6MB or smaller.");
+      setStatus("Image file must be 12MB or smaller.");
       return;
     }
 
@@ -253,29 +272,35 @@ export function MealForm() {
               <div>
                 <p className="text-sm font-medium">Meal image</p>
                 <p className="text-xs text-muted-foreground">
-                  JPEG, PNG, or WEBP up to 6MB.
+                  JPEG, PNG, WEBP, HEIC, or HEIF up to 12MB.
                 </p>
               </div>
               <Input
                 ref={imageInputRef}
                 name="image"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                 className="sm:max-w-xs"
                 onChange={onImageChange}
               />
             </div>
-            {previewUrl ? (
+            {selectedImage ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border bg-background sm:w-56">
-                  <Image
-                    src={previewUrl}
-                    alt="Selected meal"
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                </div>
+                {previewUrl ? (
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border bg-background sm:w-56">
+                    <Image
+                      src={previewUrl}
+                      alt="Selected meal"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <div className="flex min-h-28 w-full items-center justify-center rounded-md border bg-background px-3 text-center text-sm text-muted-foreground sm:w-56">
+                    {selectedImage.name}
+                  </div>
+                )}
                 <Button type="button" variant="outline" onClick={clearSelectedImage}>
                   Remove image
                 </Button>
@@ -342,19 +367,112 @@ function analyzeWithText(foodName: string) {
   });
 }
 
-function analyzeWithImage(foodName: string, image: File) {
+async function analyzeWithImage(foodName: string, image: File) {
   const formData = new FormData();
+  const mimeType = getImageMimeType(image);
+  const uploadImage = await prepareImageForAnalysis(image, mimeType);
 
   if (foodName) {
     formData.append("food_name", foodName);
   }
 
-  formData.append("image", image);
+  formData.append("image", uploadImage);
 
   return fetchWithSupabaseAuth("/api/meals/analyze", {
     method: "POST",
     body: formData
   });
+}
+
+async function prepareImageForAnalysis(image: File, mimeType: string) {
+  if (!previewableImageTypes.has(mimeType) || image.size <= maxUploadImageBytes) {
+    return mimeType ? new File([image], image.name, { type: mimeType }) : image;
+  }
+
+  try {
+    return await resizeImageFile(image);
+  } catch {
+    return new File([image], image.name, { type: mimeType });
+  }
+}
+
+function resizeImageFile(image: File) {
+  return new Promise<File>((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(image);
+    const img = document.createElement("img");
+
+    img.onload = () => {
+      URL.revokeObjectURL(imageUrl);
+      const scale = Math.min(
+        1,
+        maxUploadImageDimension / Math.max(img.naturalWidth, img.naturalHeight)
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        reject(new Error("Could not resize image."));
+        return;
+      }
+
+      context.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Could not compress image."));
+            return;
+          }
+
+          resolve(
+            new File([blob], image.name.replace(/\.[^.]+$/, ".jpg"), {
+              type: "image/jpeg"
+            })
+          );
+        },
+        "image/jpeg",
+        0.82
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error("Could not load image."));
+    };
+
+    img.src = imageUrl;
+  });
+}
+
+function getImageMimeType(file: File) {
+  if (file.type) {
+    return file.type;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (extension === "png") {
+    return "image/png";
+  }
+
+  if (extension === "webp") {
+    return "image/webp";
+  }
+
+  if (extension === "heic") {
+    return "image/heic";
+  }
+
+  if (extension === "heif") {
+    return "image/heif";
+  }
+
+  return "";
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

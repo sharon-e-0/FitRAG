@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { foodAnalysisResultSchema } from "@/lib/validation/food-analysis";
 
 export const mealTypeSchema = z.enum([
   "breakfast",
@@ -36,7 +37,8 @@ export const createMealSchema = z.object({
   context: mealContextSchema.default("normal_meal"),
   raw_text: z.string().trim().min(1, "Meal description is required.").max(2000),
   memo: z.string().trim().max(1000).optional(),
-  eaten_at: z.string().datetime().optional()
+  eaten_at: z.string().datetime().optional(),
+  analysis: foodAnalysisResultSchema.optional()
 });
 
 export type CreateMealInput = z.infer<typeof createMealSchema>;

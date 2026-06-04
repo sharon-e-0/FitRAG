@@ -656,12 +656,21 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
         hour: "2-digit",
         minute: "2-digit"
       });
+  const analysisResults = record.food_analysis_results ?? [];
+  const calories = analysisResults.reduce(
+    (sum, result) => sum + Number(result.calories ?? 0),
+    0
+  );
+  const foodNames = analysisResults
+    .map((result) => result.food_name)
+    .filter(Boolean)
+    .join(", ");
 
   return {
     id: record.id,
     type: formatMealType(record.meal_type),
-    name: record.raw_text ?? record.memo ?? "Saved meal",
-    calories: null,
+    name: foodNames || record.raw_text || record.memo || "Saved meal",
+    calories: calories > 0 ? Math.round(calories) : null,
     time,
     tags: [
       record.input_type,

@@ -24,4 +24,17 @@ export type FoodRecord = {
   eaten_at: string;
   created_at: string;
   updated_at: string;
+  food_analysis_results?: FoodAnalysisResultRow[];
+};
+
+export type FoodAnalysisResultRow = {
+  id: string;
+  food_name: string;
+  calories: number | null;
+  carbohydrate_g: number | null;
+  protein_g: number | null;
+  fat_g: number | null;
+  sugar_g: number | null;
+  sodium_mg: number | null;
+  created_at: string;
 };

@@ -107,22 +107,8 @@ export function MealForm() {
     setIsAnalyzing(true);
 
     try {
-      const response = selectedImage
-        ? await analyzeWithImage(foodName, selectedImage)
-        : await analyzeWithText(foodName);
-      const payload = await response.json();
-
-      if (response.status === 401) {
-        setStatus("Your session has expired. Please log in again.");
-        router.push("/login?next=/meals/new");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Failed to analyze meal.");
-      }
-
-      setAnalysis(payload as FoodAnalysisResult);
+      const result = await runMealAnalysis(foodName, selectedImage);
+      setAnalysis(result);
       setStatus("Meal analysis completed.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to analyze meal.");
@@ -138,20 +124,28 @@ export function MealForm() {
     setIsSubmitting(true);
 
     const formData = new FormData(form);
-    const rawText =
-      String(formData.get("rawText") ?? "").trim() || analysis?.food_name.trim() || "";
+    let nextAnalysis = analysis;
+    let rawText = String(formData.get("rawText") ?? "").trim();
     const mealType = String(formData.get("mealType") ?? "other");
     const emotion = String(formData.get("emotion") ?? "normal");
     const context = String(formData.get("context") ?? "normal_meal");
     const eatenAt = String(formData.get("eatenAt") ?? "");
 
-    if (!rawText) {
-      setStatus("Enter a meal description or analyze an uploaded image before saving.");
+    if (!rawText && !selectedImage) {
+      setStatus("Enter a meal description or upload a meal image before saving.");
       setIsSubmitting(false);
       return;
     }
 
     try {
+      if (!nextAnalysis) {
+        setStatus("Analyzing calories and nutrients before saving...");
+        nextAnalysis = await runMealAnalysis(rawText, selectedImage);
+        setAnalysis(nextAnalysis);
+      }
+
+      rawText = rawText || nextAnalysis.food_name;
+
       const response = await fetchWithSupabaseAuth("/api/meals", {
         method: "POST",
         headers: {
@@ -163,7 +157,8 @@ export function MealForm() {
           emotion,
           context,
           raw_text: rawText,
-          eaten_at: eatenAt ? new Date(eatenAt).toISOString() : undefined
+          eaten_at: eatenAt ? new Date(eatenAt).toISOString() : undefined,
+          analysis: nextAnalysis
         })
       });
 
@@ -316,6 +311,23 @@ export function MealForm() {
       </CardContent>
     </Card>
   );
+}
+
+async function runMealAnalysis(foodName: string, image: File | null) {
+  const response = image
+    ? await analyzeWithImage(foodName, image)
+    : await analyzeWithText(foodName);
+  const payload = await response.json();
+
+  if (response.status === 401) {
+    throw new Error("Your session has expired. Please log in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Failed to analyze meal.");
+  }
+
+  return payload as FoodAnalysisResult;
 }
 
 function analyzeWithText(foodName: string) {

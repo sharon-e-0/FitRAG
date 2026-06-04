@@ -9,6 +9,8 @@ export const mealTypeSchema = z.enum([
   "other"
 ]);
 
+export const mealInputTypeSchema = z.enum(["image", "text", "image_text"]);
+
 export const mealEmotionSchema = z.enum([
   "happy",
   "normal",
@@ -28,6 +30,7 @@ export const mealContextSchema = z.enum([
 ]);
 
 export const createMealSchema = z.object({
+  input_type: mealInputTypeSchema.default("text"),
   meal_type: mealTypeSchema.default("other"),
   emotion: mealEmotionSchema.default("normal"),
   context: mealContextSchema.default("normal_meal"),

@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       .from("food_records")
       .insert({
         user_id: user.id,
-        input_type: "text",
+        input_type: body.input_type,
         meal_type: body.meal_type,
         emotion: body.emotion,
         context: body.context,

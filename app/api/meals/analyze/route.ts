@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { analyzeFood } from "@/lib/ai/food-analysis";
+import { estimateFoodAnalysisFallback } from "@/lib/ai/food-analysis-fallback";
 import { getAuthenticatedUser } from "@/lib/supabase/auth-user";
 import { createClient } from "@/lib/supabase/server";
 import { foodAnalysisJsonSchema } from "@/lib/validation/food-analysis";
@@ -33,8 +34,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await analyzeFood(input);
-    return NextResponse.json(result);
+    try {
+      const result = await analyzeFood(input);
+      return NextResponse.json({
+        ...result,
+        analysis_source: "gemini"
+      });
+    } catch (error) {
+      console.error("[food-analyze-gemini]", error);
+      return NextResponse.json(
+        estimateFoodAnalysisFallback(input, getSafeErrorDetail(error))
+      );
+    }
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json(
@@ -49,13 +60,7 @@ export async function POST(request: NextRequest) {
 
     console.error("[food-analyze]", error);
 
-    return NextResponse.json(
-      {
-        error: getFoodAnalyzeErrorMessage(error),
-        detail: getSafeErrorDetail(error)
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getFoodAnalyzeErrorMessage(error) }, { status: 500 });
   }
 }
 

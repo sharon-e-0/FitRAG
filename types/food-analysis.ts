@@ -6,6 +6,8 @@ export type FoodAnalysisResult = {
   sugar: number;
   sodium: number;
   food_name: string;
+  analysis_source?: "gemini" | "fallback";
+  warning?: string;
 };
 
 export type FoodAnalysisRequest = {

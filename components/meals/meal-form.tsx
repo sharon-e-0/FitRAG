@@ -122,7 +122,11 @@ export function MealForm() {
     try {
       const result = await runMealAnalysis(foodName, selectedImage);
       setAnalysis(result);
-      setStatus("Meal analysis completed.");
+      setStatus(
+        result.analysis_source === "fallback"
+          ? result.warning ?? "Meal analysis completed with an estimated fallback."
+          : "Meal analysis completed."
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to analyze meal.");
     } finally {
@@ -158,6 +162,9 @@ export function MealForm() {
       }
 
       rawText = rawText || nextAnalysis.food_name;
+      if (nextAnalysis.analysis_source === "fallback") {
+        setStatus(nextAnalysis.warning ?? "Saving estimated nutrition result.");
+      }
 
       const response = await fetchWithSupabaseAuth("/api/meals", {
         method: "POST",
@@ -316,7 +323,14 @@ export function MealForm() {
           </div>
           {analysis ? (
             <div className="grid gap-3 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-2">
-              <div className="font-medium sm:col-span-2">{analysis.food_name}</div>
+              <div className="font-medium sm:col-span-2">
+                {analysis.food_name}
+                {analysis.analysis_source === "fallback" ? (
+                  <span className="ml-2 rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                    estimated
+                  </span>
+                ) : null}
+              </div>
               <Metric label="Calories" value={`${analysis.calories} kcal`} />
               <Metric label="Carbs" value={`${analysis.carbs} g`} />
               <Metric label="Protein" value={`${analysis.protein} g`} />

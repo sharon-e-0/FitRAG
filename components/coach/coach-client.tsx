@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { RagSearchResult } from "@/types/rag";
 
@@ -40,6 +41,19 @@ export function CoachClient() {
 
     setStatus(null);
     setIsAsking(true);
+
+    const supabase = createClient();
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      setIsAsking(false);
+      setStatus("로그인이 필요합니다. AI 코치를 사용하려면 다시 로그인해 주세요.");
+      router.replace("/login?next=/coach");
+      return;
+    }
+
     setMessages((current) => [
       ...current,
       {
@@ -64,8 +78,8 @@ export function CoachClient() {
       const payload = await response.json();
 
       if (response.status === 401) {
-        setStatus("Your login session is missing. Please log in again to use the coach.");
-        router.push("/login?next=/coach");
+        setStatus("로그인 세션이 만료되었습니다. AI 코치를 사용하려면 다시 로그인해 주세요.");
+        router.replace("/login?next=/coach");
         return;
       }
 

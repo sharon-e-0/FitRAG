@@ -295,7 +295,7 @@ export function DashboardClient() {
         });
 
         if (response.status === 401) {
-          throw new Error("Your session has expired. Please log in again.");
+          throw new Error("로그인이 필요합니다.");
         }
 
         if (!response.ok) {

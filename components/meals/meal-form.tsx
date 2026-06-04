@@ -266,7 +266,7 @@ export function MealForm() {
       );
     } catch (error) {
       if (error instanceof AuthRequiredError) {
-        setStatus("Your login session is missing. Please log in again before analyzing meals.");
+        setStatus("로그인이 필요합니다. 식단 분석을 계속하려면 다시 로그인해 주세요.");
         router.push("/login?next=/meals/new");
         return;
       }
@@ -336,7 +336,7 @@ export function MealForm() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setStatus("Your session has expired. Please log in again.");
+          setStatus("로그인이 필요합니다. 식사를 저장하려면 다시 로그인해 주세요.");
           router.push("/login?next=/meals/new");
           return;
         }

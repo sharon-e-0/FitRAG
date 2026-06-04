@@ -19,7 +19,11 @@ import {
   predictWeight
 } from "@/lib/prediction/weight";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
-import type { UserProfile, WeightLog } from "@/types/database";
+import type {
+  HealthConnectDailySummary,
+  UserProfile,
+  WeightLog
+} from "@/types/database";
 
 const activityLevels: { value: ActivityLevel; label: string }[] = [
   { value: "sedentary", label: "Sedentary" },
@@ -38,11 +42,13 @@ export function PredictionClient() {
   const [currentWeightKg, setCurrentWeightKg] = useState(68.2);
   const [targetWeightKg, setTargetWeightKg] = useState(64);
   const [avgDailyIntakeCalories, setAvgDailyIntakeCalories] = useState(1950);
-  const [avgDailyExerciseCalories, setAvgDailyExerciseCalories] = useState(120);
+  const [todayExerciseCalories, setTodayExerciseCalories] = useState(0);
   const [weightLogStatus, setWeightLogStatus] = useState("Loading latest weight log...");
+  const [activityStatus, setActivityStatus] = useState("Loading today's activity calories...");
   const [profileStatus, setProfileStatus] = useState("Loading profile...");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingWeight, setIsSavingWeight] = useState(false);
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,9 +78,11 @@ export function PredictionClient() {
         };
         const weightPayload = (await weightResponse.json()) as {
           weight_logs?: WeightLog[];
+          today_activity_summary?: HealthConnectDailySummary | null;
         };
         const profile = profilePayload.profile;
         const latestLog = weightPayload.weight_logs?.[0];
+        const todayActivity = weightPayload.today_activity_summary;
 
         if (!isMounted) {
           return;
@@ -108,6 +116,15 @@ export function PredictionClient() {
         } else {
           setWeightLogStatus("No saved weight yet. Save today's weight to start tracking.");
         }
+
+        if (todayActivity?.active_calories !== null && todayActivity?.active_calories !== undefined) {
+          setTodayExerciseCalories(Number(todayActivity.active_calories));
+          setActivityStatus(
+            `Today's exercise calories loaded: ${Number(todayActivity.active_calories).toFixed(0)} kcal.`
+          );
+        } else {
+          setActivityStatus("No exercise calories saved for today yet.");
+        }
       } catch (error) {
         if (isMounted) {
           const message =
@@ -116,6 +133,7 @@ export function PredictionClient() {
               : "Could not load profile and weight logs.";
           setProfileStatus(message);
           setWeightLogStatus(message.includes("로그인") ? "" : message);
+          setActivityStatus(message.includes("로그인") ? "" : message);
         }
       }
     }
@@ -138,7 +156,7 @@ export function PredictionClient() {
           targetWeightKg,
           activityLevel,
           avgDailyIntakeCalories,
-          avgDailyExerciseCalories,
+          avgDailyExerciseCalories: todayExerciseCalories,
           startDate: new Date()
         });
       } catch {
@@ -153,7 +171,7 @@ export function PredictionClient() {
       targetWeightKg,
       activityLevel,
       avgDailyIntakeCalories,
-      avgDailyExerciseCalories
+      todayExerciseCalories
     ]
   );
 
@@ -227,11 +245,6 @@ export function PredictionClient() {
                 value={avgDailyIntakeCalories}
                 onChange={setAvgDailyIntakeCalories}
               />
-              <NumberField
-                label="Exercise kcal"
-                value={avgDailyExerciseCalories}
-                onChange={setAvgDailyExerciseCalories}
-              />
               <label className="space-y-2 text-sm">
                 <span className="font-medium">Activity</span>
                 <select
@@ -275,6 +288,28 @@ export function PredictionClient() {
               ) : null}
             </div>
             </form>
+
+            <form
+              className="mt-5 space-y-3 rounded-3xl border border-[#F0EDE9] bg-[#FAF8F5] p-4"
+              onSubmit={handleSaveActivityCalories}
+            >
+              <NumberField
+                label="Today's exercise kcal / 오늘 운동 소모 칼로리"
+                value={todayExerciseCalories}
+                onChange={setTodayExerciseCalories}
+              />
+              <Button
+                className="w-full"
+                type="submit"
+                variant="secondary"
+                disabled={isSavingActivity || todayExerciseCalories < 0}
+              >
+                {isSavingActivity ? "Saving..." : "Save exercise calories"}
+              </Button>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {activityStatus}
+              </p>
+            </form>
           </CardContent>
         </Card>
 
@@ -283,7 +318,7 @@ export function PredictionClient() {
             <CardTitle>30 day forecast</CardTitle>
             <p className="text-sm text-muted-foreground">
               {prediction
-                ? `Daily balance ${prediction.dailyEnergyBalance} kcal, ${prediction.dailyWeightChangeKg} kg/day`
+                ? `TDEE includes ${todayExerciseCalories.toFixed(0)} kcal manual exercise burn. Daily balance ${prediction.dailyEnergyBalance} kcal, ${prediction.dailyWeightChangeKg} kg/day`
                 : "Enter valid height, weight, and calorie values to preview the forecast."}
               {" "}
             </p>
@@ -400,6 +435,51 @@ export function PredictionClient() {
     } finally {
       setIsSavingProfile(false);
       setIsSavingWeight(false);
+    }
+  }
+
+  async function handleSaveActivityCalories(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingActivity(true);
+    setActivityStatus("Saving today's exercise calories...");
+
+    try {
+      const response = await fetchWithSupabaseAuth("/api/weight-logs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          active_calories: todayExerciseCalories,
+          logged_date: new Date().toISOString().slice(0, 10)
+        })
+      });
+
+      if (response.status === 401) {
+        router.replace("/login?next=/profile");
+        throw new Error("로그인이 필요합니다. 운동 칼로리를 저장하려면 다시 로그인해 주세요.");
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to save exercise calories.");
+      }
+
+      const payload = (await response.json()) as {
+        today_activity_summary?: HealthConnectDailySummary | null;
+      };
+      const activeCalories =
+        payload.today_activity_summary?.active_calories ?? todayExerciseCalories;
+
+      setTodayExerciseCalories(Number(activeCalories));
+      setActivityStatus(
+        `Saved ${Number(activeCalories).toFixed(0)} kcal exercise burn for today.`
+      );
+    } catch (error) {
+      setActivityStatus(
+        error instanceof Error ? error.message : "Failed to save exercise calories."
+      );
+    } finally {
+      setIsSavingActivity(false);
     }
   }
 }

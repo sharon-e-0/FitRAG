@@ -50,6 +50,19 @@ export type WeightLog = {
   updated_at: string;
 };
 
+export type HealthConnectDailySummary = {
+  id: string;
+  user_id: string;
+  summary_date: string;
+  steps: number | null;
+  active_calories: number | null;
+  total_calories_burned: number | null;
+  exercise_minutes: number | null;
+  source: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type UserProfile = {
   id: string;
   user_id: string;

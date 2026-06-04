@@ -431,6 +431,21 @@ export function DashboardClient() {
     (sum, meal) => sum + (meal.calories ?? 0),
     0
   );
+  const daysSinceRegistration = useMemo(
+    () => getClampedDaysSinceRegistration(userProfile?.created_at),
+    [userProfile?.created_at]
+  );
+  const recentSevenDayIntakeTotal = useMemo(
+    () => calorieChartData.reduce((sum, day) => sum + Number(day.intake ?? 0), 0),
+    [calorieChartData]
+  );
+  const avgDailyIntakeCalories = useMemo(
+    () =>
+      recentSevenDayIntakeTotal > 0
+        ? Math.round(recentSevenDayIntakeTotal / daysSinceRegistration)
+        : 1950,
+    [daysSinceRegistration, recentSevenDayIntakeTotal]
+  );
   const dashboardWeightPrediction = useMemo(() => {
     const latestWeightLog = weightLogs[0];
 
@@ -448,7 +463,7 @@ export function DashboardClient() {
           ? Number(userProfile.target_weight_kg)
           : undefined,
         activityLevel: "moderate",
-        avgDailyIntakeCalories: totalCalories > 0 ? totalCalories : 1950,
+        avgDailyIntakeCalories,
         avgDailyExerciseCalories: Number(todayActivitySummary?.active_calories ?? 0),
         startDate: new Date()
       });
@@ -456,6 +471,8 @@ export function DashboardClient() {
       return {
         result,
         activeCalories: Number(todayActivitySummary?.active_calories ?? 0),
+        avgDailyIntakeCalories,
+        daysSinceRegistration,
         data: [
           {
             day: "Today",
@@ -473,7 +490,13 @@ export function DashboardClient() {
     } catch {
       return null;
     }
-  }, [totalCalories, todayActivitySummary, userProfile, weightLogs]);
+  }, [
+    avgDailyIntakeCalories,
+    daysSinceRegistration,
+    todayActivitySummary,
+    userProfile,
+    weightLogs
+  ]);
   const weightPredictionChartData =
     dashboardWeightPrediction?.data ?? fallbackWeightPredictionData;
   const weightPredictionDomain = getWeightPredictionDomain(weightPredictionChartData);
@@ -784,7 +807,7 @@ export function DashboardClient() {
             </CardTitle>
             <p className="text-sm text-muted-foreground">
               {dashboardWeightPrediction
-                ? `TDEE ${dashboardWeightPrediction.result.tdee} kcal includes ${dashboardWeightPrediction.activeCalories.toFixed(0)} kcal exercise burn.`
+                ? `TDEE ${dashboardWeightPrediction.result.tdee} kcal includes ${dashboardWeightPrediction.activeCalories.toFixed(0)} kcal exercise burn. Intake avg ${dashboardWeightPrediction.avgDailyIntakeCalories} kcal/day over ${dashboardWeightPrediction.daysSinceRegistration} day(s).`
                 : weightPredictionStatus}
             </p>
           </CardHeader>
@@ -1098,6 +1121,27 @@ function getRecentSevenDays() {
       label: formatter.format(date)
     };
   });
+}
+
+function getClampedDaysSinceRegistration(createdAt: string | undefined) {
+  if (!createdAt) {
+    return 7;
+  }
+
+  const createdDate = new Date(createdAt);
+
+  if (Number.isNaN(createdDate.getTime())) {
+    return 7;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  createdDate.setHours(0, 0, 0, 0);
+
+  const elapsedDays =
+    Math.floor((today.getTime() - createdDate.getTime()) / 86_400_000) + 1;
+
+  return Math.min(7, Math.max(1, elapsedDays));
 }
 
 function getWeightPredictionDomain(

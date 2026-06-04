@@ -18,7 +18,7 @@ type CoachMessage = {
 
 type CoachResponse = {
   session_id: string;
-  answer: string;
+  answer?: unknown;
   retrieved_documents: RagSearchResult[];
 };
 
@@ -94,7 +94,7 @@ export function CoachClient() {
         ...current,
         {
           role: "assistant",
-          content: result.answer
+          content: toCoachMessageText(result.answer)
         }
       ]);
       setStatus(`Retrieved ${result.retrieved_documents?.length ?? 0} context documents.`);
@@ -137,7 +137,7 @@ export function CoachClient() {
                   {message.role === "assistant" ? (
                     <CoachAnswer content={message.content} />
                   ) : (
-                    message.content
+                    toCoachMessageText(message.content)
                   )}
                 </div>
               ))
@@ -193,6 +193,14 @@ function CoachAnswer({ content }: { content: string }) {
     .map((line) => line.trim())
     .filter(Boolean);
 
+  if (lines.length === 0) {
+    return (
+      <p className="leading-7 text-muted-foreground">
+        답변을 표시할 수 없습니다. 질문을 다시 보내 주세요.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {lines.map((line, index) => {
@@ -233,13 +241,29 @@ function CoachAnswer({ content }: { content: string }) {
 }
 
 function normalizeCoachAnswer(content: string) {
-  return content
+  return toCoachMessageText(content)
     .replace(/\r\n/g, "\n")
     .replace(/\s*(#{2,3}\s+[^\n]+)/g, "\n$1\n")
     .replace(/\s*(\*\*\d+\.\s*[^*]+?\*\*)/g, "\n$1\n")
     .replace(/\s+\*\s+/g, "\n- ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function toCoachMessageText(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function getHeadingText(line: string) {

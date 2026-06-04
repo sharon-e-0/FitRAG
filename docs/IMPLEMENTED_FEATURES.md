@@ -44,6 +44,8 @@ FitRAG는 현재 Google OAuth 로그인, 식사 이미지/텍스트 분석, 사�
 - fallback 결과 경고 배지 표시
 - 최종 저장 단계에서만 DB insert
 - 저장 후 Dashboard 이동
+- 저장된 과거 식사 기록 수정 모달
+- 과거 식사 수정 후 RAG 재임베딩 순차 처리
 
 ### Supported Image Inputs
 
@@ -81,6 +83,7 @@ Fallback 특징:
 - UI 경고 배지 표시
 - 사용자 수동 수정 가능
 - RAG 임베딩 대상에서는 제외
+- 과거 fallback 기록을 사용자가 수정하면 `analysis_source: user_edit`으로 전환되어 RAG 임베딩 대상에 포함
 
 ## 5. Data Storage
 
@@ -125,6 +128,9 @@ Stored fields include:
 ### Implemented
 
 - 저장된 식사 목록 조회
+- 저장된 식사 카드 수정 버튼
+- Edit Meal Dialog
+- 음식명/칼로리/탄수화물/단백질/지방/당/나트륨/감정/상황/메모 수정
 - 식사 이미지 썸네일 표시
 - 분석된 칼로리 표시
 - 분석 전 식사는 `Pending analysis` 표시
@@ -134,6 +140,7 @@ Stored fields include:
 - RAG 상태 새로고침 버튼
 - 최근 임베딩 실패 로그 표시
 - 체중 예측 그래프
+- 가입 경과일 기반 일평균 섭취 칼로리 계산
 - 감정 분석 리포트
 - AI 코치 채팅 UI
 - 파스텔/비비드 헬스케어 테마
@@ -149,6 +156,7 @@ Stored fields include:
 - similarity search API
 - RAG 코치 API
 - fallback 분석 결과 임베딩 제외
+- user_edit 분석 결과 RAG 임베딩 포함
 - food_record_id 배열 기반 재임베딩 API
 - 검색 실패 시 최근 식사 기록 fallback context
 - Gemini 답변 실패 시 rule-based fallback
@@ -196,12 +204,14 @@ Stored fields include:
 - `health_connect_daily_summaries`에 오늘 활동 칼로리 upsert
 - BMR 계산
 - 수동 운동 칼로리를 포함한 TDEE 계산
+- 최근 7일 총섭취 칼로리 / 가입 경과일 기반 일평균 섭취 칼로리 계산
 - 에너지 수지 계산
 - 누적 칼로리 기반 체중 변화 계산
 - 7일 예측
 - 30일 예측
 - 목표 체중 도달일 계산
 - Dashboard 체중 예측 차트 실데이터 바인딩
+- 식사 수정 시 체중 예측 차트 즉시 재계산
 - Unit Test 작성
 
 ## 10. API Status
@@ -211,6 +221,7 @@ Stored fields include:
 | `/api/health` | GET | Done | 서비스 상태 확인 |
 | `/api/meals` | GET | Done | 식사 기록 조회 |
 | `/api/meals` | POST | Done | 확인된 식사 및 분석 결과 저장 |
+| `/api/meals` | PATCH | Done | 저장된 식사 및 영양 분석 수정 |
 | `/api/meals/analyze` | POST | Done | 저장 전 음식 분석 및 fallback |
 | `/api/profile` | GET/POST | Done | 프로필 조회/저장 |
 | `/api/weight-logs` | GET/POST | Done | 체중 기록 및 오늘 운동 칼로리 조회/저장 |

@@ -58,6 +58,7 @@ FitRAG는 사용자의 식사 텍스트, 식사 이미지, 감정 상태, 식사
 Dashboard는 다음 정보를 제공한다.
 
 - 오늘의 식단 및 최근 식사 목록
+- 저장된 과거 식사 기록 수정 모달
 - 실제 저장된 식사 분석 결과 기반 칼로리 요약 차트
 - 실제 저장된 식사 분석 결과 기반 영양소 차트
 - 감정 분석 리포트
@@ -66,7 +67,17 @@ Dashboard는 다음 정보를 제공한다.
 - AI 코치 채팅 진입점
 - 체중 예측 그래프
 
-### 4.5 RAG Health Coach
+### 4.5 Saved Meal Edit
+
+1. 사용자는 Dashboard의 최근 식사 카드에서 `수정` 버튼을 누른다.
+2. 시스템은 기존 음식명, 칼로리, 탄수화물, 단백질, 지방, 당, 나트륨, 감정, 상황, 메모를 Edit Modal에 로드한다.
+3. 사용자는 값을 수정하고 `수정 완료`를 누른다.
+4. 시스템은 먼저 `PATCH /api/meals`로 `food_records`와 `food_analysis_results`를 업데이트한다.
+5. 기존 분석값이 `fallback`이었고 사용자가 수정했다면 `analysis_source`를 `user_edit`으로 저장한다.
+6. DB 업데이트 성공 후 `POST /api/rag/food-records/re-embed`를 순차 호출한다.
+7. RAG 재임베딩까지 성공하면 Dashboard 데이터와 차트를 갱신한다.
+
+### 4.6 RAG Health Coach
 
 1. 사용자는 `/coach`에서 질문을 입력한다.
 2. 시스템은 질문을 text-embedding-004로 임베딩한다.
@@ -76,15 +87,17 @@ Dashboard는 다음 정보를 제공한다.
 6. pgvector 검색 결과가 없으면 최근 식사 기록 fallback 컨텍스트를 사용한다.
 7. Gemini 답변 실패 시 rule-based fallback 답변을 제공한다.
 
-### 4.6 Profile And Weight Prediction
+### 4.7 Profile And Weight Prediction
 
 1. 사용자는 `/profile` 또는 `/prediction`에서 키, 나이, 성별, 현재 체중, 목표 체중을 입력한다.
 2. 프로필 정보는 `user_profiles`에 저장된다.
 3. 현재 체중은 `weight_logs`에 저장된다.
 4. 사용자는 Health Connect 모바일 연동 전까지 오늘 운동으로 소모한 칼로리를 수동 입력한다.
 5. 수동 운동 칼로리는 `health_connect_daily_summaries`에 오늘 날짜 기준으로 upsert된다.
-6. 예측 엔진은 BMR, 활동계수 기반 TDEE, 수동 운동 소모 칼로리, 에너지 수지를 계산한다.
-7. 7일/30일 예측 체중과 목표 체중 도달 예상일을 표시한다.
+6. Dashboard는 사용자 프로필의 `created_at` 기준 가입 경과일을 1~7일 범위로 계산한다.
+7. 최근 7일 섭취 칼로리 총합을 가입 경과일로 나눠 일평균 섭취 칼로리를 계산한다.
+8. 예측 엔진은 BMR, 활동계수 기반 TDEE, 수동 운동 소모 칼로리, 일평균 섭취 칼로리 기반 에너지 수지를 계산한다.
+9. 7일/30일 예측 체중과 목표 체중 도달 예상일을 표시한다.
 
 ## 5. Functional Requirements
 
@@ -103,6 +116,9 @@ Dashboard는 다음 정보를 제공한다.
 - 저장 전 AI 분석 결과를 확인하고 수정할 수 있어야 한다.
 - 최종 저장 전에는 DB insert가 발생하지 않아야 한다.
 - 저장된 이미지는 Supabase Storage에 보관하고 URL을 DB에 저장해야 한다.
+- Dashboard에서 저장된 과거 식사 기록을 다시 열어 수정할 수 있어야 한다.
+- 과거 식사 수정 후 RAG 문서를 순차적으로 재임베딩해야 한다.
+- fallback 분석 결과를 사용자가 수정하면 `analysis_source`를 `user_edit`으로 변경해야 한다.
 
 ### 5.3 Food Analysis
 
@@ -128,6 +144,7 @@ Dashboard는 다음 정보를 제공한다.
 - RAG 상태를 `/api/rag/status`로 새로고침할 수 있어야 한다.
 - 감정/상황 태그를 컬러풀한 뱃지로 표시해야 한다.
 - 체중 예측 차트는 저장된 프로필, 최신 체중, 오늘 수동 운동 칼로리를 반영해야 한다.
+- 체중 예측 차트는 최근 7일 총섭취 칼로리를 가입 경과일 기준 일평균으로 환산해 반영해야 한다.
 
 ### 5.6 Weight Prediction
 
@@ -135,6 +152,7 @@ Dashboard는 다음 정보를 제공한다.
 - 오늘 운동 소모 칼로리를 수동 입력하고 저장할 수 있어야 한다.
 - 수동 운동 칼로리는 Health Connect 대체 데이터로 `health_connect_daily_summaries`에 저장해야 한다.
 - BMR/TDEE/에너지 수지를 계산해야 하며 TDEE에는 수동 운동 소모 칼로리가 반드시 포함되어야 한다.
+- 가입 초기 사용자의 예측 왜곡을 줄이기 위해 최근 7일 총섭취 칼로리를 `min 1일, max 7일`의 가입 경과일로 나눠야 한다.
 - 7일/30일 체중 예측을 제공해야 한다.
 - 목표 체중 도달 예상일을 계산해야 한다.
 

@@ -67,8 +67,10 @@ components/
   coach/
   layout/
   meals/
+    edit-meal-dialog.tsx
   prediction/
   ui/
+    dialog.tsx
 
 lib/
   ai/
@@ -200,7 +202,45 @@ Gemini 호출 실패, timeout, rate limit, invalid content 등의 상황에서�
 
 Fallback 결과는 UI에서 경고 배지로 표시되며, 사용자가 최종 저장 전에 수치를 수정할 수 있다.
 
-## 7. Database And Storage
+## 7. Meal Edit Architecture
+
+### Files
+
+- `components/meals/edit-meal-dialog.tsx`
+- `components/ui/dialog.tsx`
+- `app/api/meals/route.ts`
+- `lib/validation/meals.ts`
+- `migration_analysis_source_user_edit.sql`
+
+### Sequential Edit Flow
+
+```txt
+Dashboard meal card
+  -> user clicks edit
+  -> EditMealDialog opens with current food_records + food_analysis_results values
+  -> PATCH /api/meals
+    -> update food_records emotion/context/memo
+    -> update or insert food_analysis_results nutrition values
+    -> fallback analysis_source becomes user_edit
+  -> POST /api/rag/food-records/re-embed
+    -> delete existing rag_documents for food_record_id
+    -> rebuild content
+    -> regenerate text-embedding-004 vector
+  -> update dashboard savedMeals state
+  -> close modal
+```
+
+### RAG Safety
+
+The embedding service excludes only `analysis_source = 'fallback'`.
+
+```ts
+result.analysis_source !== "fallback"
+```
+
+Therefore `analysis_source = 'user_edit'` is treated as reliable user-confirmed nutrition data and is eligible for re-embedding.
+
+## 8. Database And Storage
 
 ### Core Tables
 
@@ -226,13 +266,19 @@ Fallback 결과는 UI에서 경고 배지로 표시되며, 사용자가 최종 �
 - `rag_documents.embedding vector(768)`
 - `embedding_failure_logs.failure_reason`
 
+### Analysis Source Values
+
+- `gemini`: Gemini-generated analysis
+- `fallback`: low-confidence fallback estimate, excluded from RAG embedding
+- `user_edit`: user-confirmed edited nutrition values, included in RAG embedding
+
 ### Storage
 
 - Bucket: `meal_images`
 - Purpose: 식사 이미지 원본 또는 변환/압축 이미지 보관
 - DB reference: `food_records.image_url`
 
-## 8. RAG Architecture
+## 9. RAG Architecture
 
 ### Files
 
@@ -294,7 +340,7 @@ food_record_id
 }
 ```
 
-## 9. Coach Architecture
+## 10. Coach Architecture
 
 ### Flow
 
@@ -315,7 +361,7 @@ Question
 
 Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽기 쉽게 표시한다.
 
-## 10. Dashboard Architecture
+## 11. Dashboard Architecture
 
 ### Files
 
@@ -334,8 +380,10 @@ Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽�
 - `image_url`이 있으면 Next.js `Image`로 썸네일을 렌더링한다.
 - RAG 상태 카드의 새로고침 버튼이 `/api/rag/status`를 다시 호출한다.
 - 체중 예측 차트는 `/api/profile`과 `/api/weight-logs`에서 프로필, 최신 체중, 오늘 활동 요약을 불러와 `predictWeight()` 결과로 렌더링한다.
+- 저장된 식사 수정 완료 시 `savedMeals` state가 갱신되며 칼로리, 영양소, 체중 예측 차트가 즉시 재계산된다.
+- 체중 예측의 섭취 칼로리는 최근 7일 총섭취 칼로리를 가입 경과일 기준으로 나눈 일평균 값이다.
 
-## 11. Profile And Weight Prediction
+## 12. Profile And Weight Prediction
 
 ### Files
 
@@ -353,6 +401,8 @@ Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽�
 
 - BMR
 - TDEE = BMR * activity factor + today's manual active calories
+- Days since registration = clamp(today - user_profiles.created_at + 1, 1, 7)
+- Average daily intake calories = recent 7-day intake total / days since registration
 - Daily energy balance
 - Daily weight delta
 - 7-day forecast
@@ -377,13 +427,14 @@ PredictionClient
   -> profile/prediction page and dashboard weight chart update
 ```
 
-## 12. API Summary
+## 13. API Summary
 
 | API | Method | Purpose |
 | --- | --- | --- |
 | `/api/health` | GET | service health check |
 | `/api/meals` | GET | list user meal records |
 | `/api/meals` | POST | save confirmed meal and analysis |
+| `/api/meals` | PATCH | update saved meal and nutrition values |
 | `/api/meals/analyze` | POST | analyze meal before saving |
 | `/api/profile` | GET/POST | load and save user profile |
 | `/api/weight-logs` | GET/POST | load/save weight logs and today's manual activity calories |
@@ -394,7 +445,7 @@ PredictionClient
 | `/api/rag/status` | GET | embedding status diagnostics |
 | `/api/auth/logout` | POST | logout |
 
-## 13. Testing
+## 14. Testing
 
 Unit tests are implemented for the weight prediction engine.
 
@@ -408,7 +459,7 @@ Build verification:
 npm run build
 ```
 
-## 14. Deployment Notes
+## 15. Deployment Notes
 
 - GitHub repository: `sharon-e-0/FitRAG`
 - Production URL: `https://fit-rag.vercel.app`

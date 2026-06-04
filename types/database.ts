@@ -49,3 +49,14 @@ export type WeightLog = {
   created_at: string;
   updated_at: string;
 };
+
+export type UserProfile = {
+  id: string;
+  user_id: string;
+  age: number | null;
+  gender: "male" | "female" | "other" | "unknown" | null;
+  height_cm: number | null;
+  target_weight_kg: number | null;
+  created_at: string;
+  updated_at: string;
+};

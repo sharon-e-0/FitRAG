@@ -18,7 +18,7 @@ import {
   predictWeight
 } from "@/lib/prediction/weight";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
-import type { WeightLog } from "@/types/database";
+import type { UserProfile, WeightLog } from "@/types/database";
 
 const activityLevels: { value: ActivityLevel; label: string }[] = [
   { value: "sedentary", label: "Sedentary" },
@@ -38,30 +38,65 @@ export function PredictionClient() {
   const [avgDailyIntakeCalories, setAvgDailyIntakeCalories] = useState(1950);
   const [avgDailyExerciseCalories, setAvgDailyExerciseCalories] = useState(120);
   const [weightLogStatus, setWeightLogStatus] = useState("Loading latest weight log...");
+  const [profileStatus, setProfileStatus] = useState("Loading profile...");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingWeight, setIsSavingWeight] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadLatestWeightLog() {
+    async function loadProfileAndWeightLog() {
       try {
-        const response = await fetchWithSupabaseAuth("/api/weight-logs", {
-          cache: "no-store"
-        });
+        const [profileResponse, weightResponse] = await Promise.all([
+          fetchWithSupabaseAuth("/api/profile", { cache: "no-store" }),
+          fetchWithSupabaseAuth("/api/weight-logs", { cache: "no-store" })
+        ]);
 
-        if (response.status === 401) {
-          throw new Error("Login is required to load weight logs.");
+        if (profileResponse.status === 401 || weightResponse.status === 401) {
+          throw new Error("Login is required to load profile and weight logs.");
         }
 
-        if (!response.ok) {
+        if (!profileResponse.ok) {
+          throw new Error("Could not load profile.");
+        }
+
+        if (!weightResponse.ok) {
           throw new Error("Could not load weight logs.");
         }
 
-        const payload = (await response.json()) as { weight_logs?: WeightLog[] };
-        const latestLog = payload.weight_logs?.[0];
+        const profilePayload = (await profileResponse.json()) as {
+          profile?: UserProfile | null;
+        };
+        const weightPayload = (await weightResponse.json()) as {
+          weight_logs?: WeightLog[];
+        };
+        const profile = profilePayload.profile;
+        const latestLog = weightPayload.weight_logs?.[0];
 
         if (!isMounted) {
           return;
+        }
+
+        if (profile) {
+          if (profile.age) {
+            setAge(Number(profile.age));
+          }
+
+          if (profile.gender === "male" || profile.gender === "female") {
+            setSex(profile.gender);
+          }
+
+          if (profile.height_cm) {
+            setHeightCm(Number(profile.height_cm));
+          }
+
+          if (profile.target_weight_kg) {
+            setTargetWeightKg(Number(profile.target_weight_kg));
+          }
+
+          setProfileStatus("Profile loaded.");
+        } else {
+          setProfileStatus("No profile yet. Enter height and goal weight, then save.");
         }
 
         if (latestLog) {
@@ -72,6 +107,11 @@ export function PredictionClient() {
         }
       } catch (error) {
         if (isMounted) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Could not load profile and weight logs.";
+          setProfileStatus(message);
           setWeightLogStatus(
             error instanceof Error ? error.message : "Could not load weight logs."
           );
@@ -79,7 +119,7 @@ export function PredictionClient() {
       }
     }
 
-    loadLatestWeightLog();
+    loadProfileAndWeightLog();
 
     return () => {
       isMounted = false;
@@ -169,14 +209,25 @@ export function PredictionClient() {
                 step={0.1}
                 onChange={setCurrentWeightKg}
               />
-              <form className="space-y-2" onSubmit={handleSaveWeightLog}>
+              <form className="space-y-2" onSubmit={handleSaveProfileAndWeight}>
                 <Button
                   className="w-full"
                   type="submit"
-                  disabled={isSavingWeight || currentWeightKg <= 0}
+                  disabled={
+                    isSavingProfile ||
+                    isSavingWeight ||
+                    currentWeightKg <= 0 ||
+                    heightCm <= 0 ||
+                    targetWeightKg <= 0
+                  }
                 >
-                  {isSavingWeight ? "Saving..." : "Save current weight"}
+                  {isSavingProfile || isSavingWeight
+                    ? "Saving..."
+                    : "Save profile & current weight"}
                 </Button>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {profileStatus}
+                </p>
                 <p className="text-xs leading-5 text-muted-foreground">
                   {weightLogStatus}
                 </p>
@@ -260,13 +311,27 @@ export function PredictionClient() {
     </div>
   );
 
-  async function handleSaveWeightLog(event: FormEvent<HTMLFormElement>) {
+  async function handleSaveProfileAndWeight(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsSavingProfile(true);
     setIsSavingWeight(true);
+    setProfileStatus("Saving profile and goal...");
     setWeightLogStatus("Saving today's weight...");
 
     try {
-      const response = await fetchWithSupabaseAuth("/api/weight-logs", {
+      const profileResponse = await fetchWithSupabaseAuth("/api/profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          age,
+          gender: sex,
+          height_cm: heightCm,
+          target_weight_kg: targetWeightKg
+        })
+      });
+      const weightResponse = await fetchWithSupabaseAuth("/api/weight-logs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -277,25 +342,36 @@ export function PredictionClient() {
         })
       });
 
-      if (response.status === 401) {
-        throw new Error("Login is required to save weight.");
+      if (profileResponse.status === 401 || weightResponse.status === 401) {
+        throw new Error("Login is required to save profile and weight.");
       }
 
-      if (!response.ok) {
+      if (!profileResponse.ok) {
+        throw new Error("Failed to save profile.");
+      }
+
+      if (!weightResponse.ok) {
         throw new Error("Failed to save weight.");
       }
 
-      const payload = (await response.json()) as { weight_log?: WeightLog };
+      const payload = (await weightResponse.json()) as { weight_log?: WeightLog };
+      setProfileStatus(
+        `Saved ${heightCm.toFixed(1)}cm height and ${targetWeightKg.toFixed(1)}kg goal.`
+      );
       setWeightLogStatus(
         payload.weight_log
           ? `Saved ${Number(payload.weight_log.weight_kg).toFixed(1)}kg for ${payload.weight_log.logged_date}.`
           : "Weight saved."
       );
     } catch (error) {
+      setProfileStatus(
+        error instanceof Error ? error.message : "Failed to save profile."
+      );
       setWeightLogStatus(
         error instanceof Error ? error.message : "Failed to save weight."
       );
     } finally {
+      setIsSavingProfile(false);
       setIsSavingWeight(false);
     }
   }

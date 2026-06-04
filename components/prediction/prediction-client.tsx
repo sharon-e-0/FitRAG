@@ -164,9 +164,9 @@ export function PredictionClient() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold">Weight prediction</h1>
+        <h1 className="text-3xl font-semibold">Profile & weight goal</h1>
         <p className="mt-2 text-muted-foreground">
-          Rule-based forecast using BMR, TDEE, energy balance, and cumulative calories.
+          Enter height, current weight, and goal weight to personalize the forecast.
         </p>
       </div>
 
@@ -186,7 +186,7 @@ export function PredictionClient() {
       <section className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Inputs</CardTitle>
+            <CardTitle>Body profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
@@ -202,9 +202,9 @@ export function PredictionClient() {
                 </select>
               </label>
               <NumberField label="Age" value={age} onChange={setAge} />
-              <NumberField label="Height cm" value={heightCm} onChange={setHeightCm} />
+              <NumberField label="Height cm / 키" value={heightCm} onChange={setHeightCm} />
               <NumberField
-                label="Current kg"
+                label="Current kg / 현재 체중"
                 value={currentWeightKg}
                 step={0.1}
                 onChange={setCurrentWeightKg}
@@ -233,7 +233,7 @@ export function PredictionClient() {
                 </p>
               </form>
               <NumberField
-                label="Target kg"
+                label="Target kg / 목표 체중"
                 value={targetWeightKg}
                 step={0.1}
                 onChange={setTargetWeightKg}

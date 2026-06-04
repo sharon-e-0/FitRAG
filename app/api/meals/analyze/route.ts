@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error("[food-analyze-gemini]", error);
       return NextResponse.json(
-        estimateFoodAnalysisFallback(input, getSafeErrorDetail(error))
+        estimateFoodAnalysisFallback(input, getUserSafeGeminiError(error))
       );
     }
   } catch (error) {
@@ -155,10 +155,26 @@ function getFoodAnalyzeErrorMessage(error: unknown) {
   return "Failed to analyze food with Gemini.";
 }
 
-function getSafeErrorDetail(error: unknown) {
+function getUserSafeGeminiError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
 
-  return message.slice(0, 500);
+  if (/bytestring|character|greater than 255|header/i.test(message)) {
+    return "Gemini request configuration contains invalid characters. Check the Gemini API key and image payload.";
+  }
+
+  if (/quota|rate limit|429/i.test(message)) {
+    return "Gemini quota or rate limit was exceeded.";
+  }
+
+  if (/api key|GOOGLE_GENERATIVE_AI_API_KEY/i.test(message)) {
+    return "Gemini API key is missing or invalid.";
+  }
+
+  if (/image|mime|unsupported/i.test(message)) {
+    return "Gemini could not read this image. Try a clear JPEG, PNG, or WEBP image.";
+  }
+
+  return "Gemini analysis is temporarily unavailable.";
 }
 
 class RequestParseError extends Error {

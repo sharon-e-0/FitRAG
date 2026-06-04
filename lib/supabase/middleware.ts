@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const protectedPaths = ["/dashboard", "/meals", "/coach", "/prediction"];
+  const protectedPaths = ["/dashboard", "/meals", "/coach", "/prediction", "/profile"];
   const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
   const hasAuthCookie = request.cookies
     .getAll()

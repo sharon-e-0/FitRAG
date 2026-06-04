@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bot, LayoutDashboard, PlusCircle, Scale } from "lucide-react";
+import { Bot, LayoutDashboard, PlusCircle, UserRound } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Button } from "@/components/ui/button";
 
@@ -7,7 +7,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/meals/new", label: "Meal", icon: PlusCircle },
   { href: "/coach", label: "Coach", icon: Bot },
-  { href: "/prediction", label: "Prediction", icon: Scale }
+  { href: "/profile", label: "Profile", icon: UserRound }
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {

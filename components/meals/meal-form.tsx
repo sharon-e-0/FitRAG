@@ -48,6 +48,12 @@ export function MealForm() {
       const payload = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setStatus("Your session has expired. Please log in again.");
+          router.push("/login?next=/meals/new");
+          return;
+        }
+
         throw new Error(payload.error ?? "Failed to save meal.");
       }
 

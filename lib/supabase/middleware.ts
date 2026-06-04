@@ -15,12 +15,5 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (hasAuthCookie && pathname === "/login") {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
-  }
-
   return NextResponse.next({ request });
 }

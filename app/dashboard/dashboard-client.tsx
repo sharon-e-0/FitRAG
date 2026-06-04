@@ -177,6 +177,10 @@ export function DashboardClient() {
           cache: "no-store"
         });
 
+        if (response.status === 401) {
+          throw new Error("Your session has expired. Please log in again.");
+        }
+
         if (!response.ok) {
           throw new Error("Could not load saved meals.");
         }
@@ -192,9 +196,13 @@ export function DashboardClient() {
               : "No saved meals yet, showing sample dashboard data"
           );
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
-          setMealStatus("Unable to load saved meals, showing sample dashboard data");
+          setMealStatus(
+            error instanceof Error
+              ? `${error.message} Showing sample dashboard data.`
+              : "Unable to load saved meals, showing sample dashboard data"
+          );
         }
       }
     }

@@ -10,11 +10,21 @@ function normalizeEnvValue(value: string | undefined) {
     return "";
   }
 
-  const normalized = value.trim().replace(/^['"]|['"]$/g, "");
+  const normalized = value.trim().replace(/^['"“”‘’]|['"“”‘’]$/g, "");
   const assignmentIndex = normalized.indexOf("=");
 
   if (assignmentIndex >= 0) {
-    return normalized.slice(assignmentIndex + 1).trim().replace(/^['"]|['"]$/g, "");
+    return normalizeEnvValue(normalized.slice(assignmentIndex + 1));
+  }
+
+  try {
+    const url = new URL(normalized.replace(/[“”‘’]/g, ""));
+
+    if (url.hostname.endsWith(".supabase.co")) {
+      return url.origin;
+    }
+  } catch {
+    return normalized;
   }
 
   return normalized;

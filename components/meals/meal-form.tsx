@@ -43,6 +43,17 @@ const mealContexts = [
   { value: "rushed", label: "Rushed" }
 ];
 
+const nutrientFields = [
+  { key: "calories", label: "Calories", unit: "kcal", step: "1" },
+  { key: "carbs", label: "Carbs", unit: "g", step: "0.1" },
+  { key: "protein", label: "Protein", unit: "g", step: "0.1" },
+  { key: "fat", label: "Fat", unit: "g", step: "0.1" },
+  { key: "sugar", label: "Sugar", unit: "g", step: "0.1" },
+  { key: "sodium", label: "Sodium", unit: "mg", step: "1" }
+] as const;
+
+type NumericAnalysisKey = (typeof nutrientFields)[number]["key"];
+
 export function MealForm() {
   const router = useRouter();
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -75,6 +86,7 @@ export function MealForm() {
 
     if (!file) {
       setSelectedImage(null);
+      setAnalysis(null);
       return;
     }
 
@@ -95,14 +107,33 @@ export function MealForm() {
     }
 
     setStatus(null);
+    setAnalysis(null);
     setSelectedImage(file);
   }
 
   function clearSelectedImage() {
     setSelectedImage(null);
+    setAnalysis(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = "";
     }
+  }
+
+  function updateFoodName(value: string) {
+    setAnalysis((current) => (current ? { ...current, food_name: value } : current));
+  }
+
+  function updateNumericAnalysisField(key: NumericAnalysisKey, value: string) {
+    const parsed = Number(value);
+
+    setAnalysis((current) =>
+      current
+        ? {
+            ...current,
+            [key]: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+          }
+        : current
+    );
   }
 
   async function onAnalyze() {
@@ -124,8 +155,8 @@ export function MealForm() {
       setAnalysis(result);
       setStatus(
         result.analysis_source === "fallback"
-          ? result.warning ?? "Meal analysis completed with an estimated fallback."
-          : "Meal analysis completed."
+          ? result.warning ?? "Estimated result generated. Please review before final save."
+          : "Analysis completed. Review and edit the values before final save."
       );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to analyze meal.");
@@ -141,7 +172,6 @@ export function MealForm() {
     setIsSubmitting(true);
 
     const formData = new FormData(form);
-    let nextAnalysis = analysis;
     let rawText = String(formData.get("rawText") ?? "").trim();
     const mealType = String(formData.get("mealType") ?? "other");
     const emotion = String(formData.get("emotion") ?? "normal");
@@ -154,17 +184,20 @@ export function MealForm() {
       return;
     }
 
-    try {
-      if (!nextAnalysis) {
-        setStatus("Analyzing calories and nutrients before saving...");
-        nextAnalysis = await runMealAnalysis(rawText, selectedImage);
-        setAnalysis(nextAnalysis);
-      }
+    if (!analysis) {
+      setStatus("Run AI analysis and review the nutrition values before final save.");
+      setIsSubmitting(false);
+      return;
+    }
 
-      rawText = rawText || nextAnalysis.food_name;
-      if (nextAnalysis.analysis_source === "fallback") {
-        setStatus(nextAnalysis.warning ?? "Saving estimated nutrition result.");
-      }
+    if (!analysis.food_name.trim()) {
+      setStatus("Food name is required before final save.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      rawText = rawText || analysis.food_name;
 
       const response = await fetchWithSupabaseAuth("/api/meals", {
         method: "POST",
@@ -178,7 +211,7 @@ export function MealForm() {
           context,
           raw_text: rawText,
           eaten_at: eatenAt ? new Date(eatenAt).toISOString() : undefined,
-          analysis: nextAnalysis
+          analysis
         })
       });
 
@@ -267,6 +300,7 @@ export function MealForm() {
             name="rawText"
             placeholder="Describe the meal, mood, and situation."
             rows={6}
+            onChange={() => setAnalysis(null)}
           />
           <div className="grid gap-3 rounded-md border border-dashed bg-muted/20 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -315,28 +349,52 @@ export function MealForm() {
               disabled={isAnalyzing || isSubmitting}
               onClick={onAnalyze}
             >
-              {isAnalyzing ? "Analyzing..." : "Analyze meal"}
+              {isAnalyzing ? "Analyzing..." : "AI 분석 및 확인"}
             </Button>
-            <Button type="submit" disabled={isSubmitting || isAnalyzing}>
-              {isSubmitting ? "Saving..." : "Save meal"}
+            <Button type="submit" disabled={isSubmitting || isAnalyzing || !analysis}>
+              {isSubmitting ? "Saving..." : "최종 저장"}
             </Button>
           </div>
           {analysis ? (
-            <div className="grid gap-3 rounded-md border bg-muted/30 p-4 text-sm sm:grid-cols-2">
-              <div className="font-medium sm:col-span-2">
-                {analysis.food_name}
+            <div className="grid gap-4 rounded-md border bg-muted/30 p-4 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Analysis result</span>
                 {analysis.analysis_source === "fallback" ? (
-                  <span className="ml-2 rounded-md border px-2 py-1 text-xs text-muted-foreground">
-                    estimated
+                  <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
+                    fallback estimate - review required
                   </span>
                 ) : null}
               </div>
-              <Metric label="Calories" value={`${analysis.calories} kcal`} />
-              <Metric label="Carbs" value={`${analysis.carbs} g`} />
-              <Metric label="Protein" value={`${analysis.protein} g`} />
-              <Metric label="Fat" value={`${analysis.fat} g`} />
-              <Metric label="Sugar" value={`${analysis.sugar} g`} />
-              <Metric label="Sodium" value={`${analysis.sodium} mg`} />
+              {analysis.analysis_source === "fallback" && analysis.warning ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  {analysis.warning}
+                </p>
+              ) : null}
+              <label className="grid gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Food name</span>
+                <Input
+                  value={analysis.food_name}
+                  onChange={(event) => updateFoodName(event.target.value)}
+                />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {nutrientFields.map((field) => (
+                  <label key={field.key} className="grid gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {field.label} ({field.unit})
+                    </span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step={field.step}
+                      value={analysis[field.key]}
+                      onChange={(event) =>
+                        updateNumericAnalysisField(field.key, event.target.value)
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
           ) : null}
           {status ? <p className="text-sm text-muted-foreground">{status}</p> : null}
@@ -485,13 +543,4 @@ function getImageMimeType(file: File) {
   }
 
   return "";
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
-  );
 }

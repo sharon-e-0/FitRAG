@@ -11,7 +11,9 @@ export const foodAnalysisResultSchema = z.object({
   fat: z.number().nonnegative(),
   sugar: z.number().nonnegative(),
   sodium: z.number().nonnegative(),
-  food_name: z.string().trim().min(1)
+  food_name: z.string().trim().min(1),
+  analysis_source: z.enum(["gemini", "fallback"]).optional(),
+  warning: z.string().trim().max(1000).optional()
 });
 
 export type FoodAnalysisJsonInput = z.infer<typeof foodAnalysisJsonSchema>;

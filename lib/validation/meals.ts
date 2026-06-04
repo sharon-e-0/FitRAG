@@ -38,7 +38,7 @@ export const createMealSchema = z.object({
   raw_text: z.string().trim().min(1, "Meal description is required.").max(2000),
   memo: z.string().trim().max(1000).optional(),
   eaten_at: z.string().datetime().optional(),
-  analysis: foodAnalysisResultSchema.optional()
+  analysis: foodAnalysisResultSchema
 });
 
 export type CreateMealInput = z.infer<typeof createMealSchema>;

@@ -190,15 +190,18 @@ Stored fields include:
 - 성별 선택
 - 현재 체중 입력
 - 목표 체중 입력
+- 오늘 운동 소모 칼로리 수동 입력
 - `user_profiles` 저장
 - `weight_logs` 저장
+- `health_connect_daily_summaries`에 오늘 활동 칼로리 upsert
 - BMR 계산
-- TDEE 계산
+- 수동 운동 칼로리를 포함한 TDEE 계산
 - 에너지 수지 계산
 - 누적 칼로리 기반 체중 변화 계산
 - 7일 예측
 - 30일 예측
 - 목표 체중 도달일 계산
+- Dashboard 체중 예측 차트 실데이터 바인딩
 - Unit Test 작성
 
 ## 10. API Status
@@ -210,7 +213,7 @@ Stored fields include:
 | `/api/meals` | POST | Done | 확인된 식사 및 분석 결과 저장 |
 | `/api/meals/analyze` | POST | Done | 저장 전 음식 분석 및 fallback |
 | `/api/profile` | GET/POST | Done | 프로필 조회/저장 |
-| `/api/weight-logs` | GET/POST | Done | 체중 기록 조회/저장 |
+| `/api/weight-logs` | GET/POST | Done | 체중 기록 및 오늘 운동 칼로리 조회/저장 |
 | `/api/rag/food-records/embed` | POST | Done | 식사 기록 임베딩 |
 | `/api/rag/food-records/re-embed` | POST | Done | 식사 기록 재임베딩 |
 | `/api/rag/search` | POST | Done | pgvector 검색 |
@@ -248,6 +251,7 @@ GitHub `main` branch push 후 Vercel 자동 배포 구조로 운영한다.
 ## 12. Remaining Work
 
 - Health Connect SDK 실기기 동기화
+- Health Connect 실기기 동기화 후 수동 활동 칼로리와 자동 활동 데이터 병합 정책
 - 다중 음식 개별 분리 분석
 - 관리자 전용 권한 체계
 - 더 정교한 영양 DB 기반 fallback

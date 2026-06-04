@@ -81,8 +81,10 @@ Dashboard는 다음 정보를 제공한다.
 1. 사용자는 `/profile` 또는 `/prediction`에서 키, 나이, 성별, 현재 체중, 목표 체중을 입력한다.
 2. 프로필 정보는 `user_profiles`에 저장된다.
 3. 현재 체중은 `weight_logs`에 저장된다.
-4. 예측 엔진은 BMR, TDEE, 에너지 수지를 계산한다.
-5. 7일/30일 예측 체중과 목표 체중 도달 예상일을 표시한다.
+4. 사용자는 Health Connect 모바일 연동 전까지 오늘 운동으로 소모한 칼로리를 수동 입력한다.
+5. 수동 운동 칼로리는 `health_connect_daily_summaries`에 오늘 날짜 기준으로 upsert된다.
+6. 예측 엔진은 BMR, 활동계수 기반 TDEE, 수동 운동 소모 칼로리, 에너지 수지를 계산한다.
+7. 7일/30일 예측 체중과 목표 체중 도달 예상일을 표시한다.
 
 ## 5. Functional Requirements
 
@@ -125,11 +127,14 @@ Dashboard는 다음 정보를 제공한다.
 - `image_url`이 있으면 썸네일을 표시해야 한다.
 - RAG 상태를 `/api/rag/status`로 새로고침할 수 있어야 한다.
 - 감정/상황 태그를 컬러풀한 뱃지로 표시해야 한다.
+- 체중 예측 차트는 저장된 프로필, 최신 체중, 오늘 수동 운동 칼로리를 반영해야 한다.
 
 ### 5.6 Weight Prediction
 
 - 사용자 프로필과 체중 기록을 저장해야 한다.
-- BMR/TDEE/에너지 수지를 계산해야 한다.
+- 오늘 운동 소모 칼로리를 수동 입력하고 저장할 수 있어야 한다.
+- 수동 운동 칼로리는 Health Connect 대체 데이터로 `health_connect_daily_summaries`에 저장해야 한다.
+- BMR/TDEE/에너지 수지를 계산해야 하며 TDEE에는 수동 운동 소모 칼로리가 반드시 포함되어야 한다.
 - 7일/30일 체중 예측을 제공해야 한다.
 - 목표 체중 도달 예상일을 계산해야 한다.
 
@@ -148,6 +153,7 @@ Dashboard는 다음 정보를 제공한다.
 ## 7. Current Limitations
 
 - Health Connect SDK 실기기 연동은 아직 구현되지 않았다.
+- Health Connect 실기기 연동 전까지 활동 소모 칼로리는 수동 입력으로 대체한다.
 - 다중 음식 분리 분석은 단일 통합 영양 추정으로 처리된다.
 - fallback 영양 추정값은 정확한 분석값이 아니므로 사용자 확인이 필요하다.
 - Google OAuth는 모바일 앱 내부 브라우저/WebView에서 차단될 수 있으며 Chrome/Safari 사용이 필요하다.

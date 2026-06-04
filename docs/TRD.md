@@ -333,6 +333,7 @@ Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽�
 - 탄수화물/단백질/지방 합계를 Pie 또는 Bar 데이터로 변환한다.
 - `image_url`이 있으면 Next.js `Image`로 썸네일을 렌더링한다.
 - RAG 상태 카드의 새로고침 버튼이 `/api/rag/status`를 다시 호출한다.
+- 체중 예측 차트는 `/api/profile`과 `/api/weight-logs`에서 프로필, 최신 체중, 오늘 활동 요약을 불러와 `predictWeight()` 결과로 렌더링한다.
 
 ## 11. Profile And Weight Prediction
 
@@ -351,7 +352,7 @@ Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽�
 ### Calculation
 
 - BMR
-- TDEE
+- TDEE = BMR * activity factor + today's manual active calories
 - Daily energy balance
 - Daily weight delta
 - 7-day forecast
@@ -362,6 +363,19 @@ Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽�
 
 - `user_profiles`: height, age, gender, target weight
 - `weight_logs`: current weight over time
+- `health_connect_daily_summaries`: manual active calories until Health Connect SDK sync is implemented
+
+### Manual Activity Calories Flow
+
+```txt
+PredictionClient
+  -> user enters today's exercise kcal
+  -> POST /api/weight-logs
+  -> upsert health_connect_daily_summaries by user_id + summary_date
+  -> GET /api/weight-logs returns today_activity_summary
+  -> predictWeight(avgDailyExerciseCalories = active_calories)
+  -> profile/prediction page and dashboard weight chart update
+```
 
 ## 12. API Summary
 
@@ -372,7 +386,7 @@ Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽�
 | `/api/meals` | POST | save confirmed meal and analysis |
 | `/api/meals/analyze` | POST | analyze meal before saving |
 | `/api/profile` | GET/POST | load and save user profile |
-| `/api/weight-logs` | GET/POST | load and save weight logs |
+| `/api/weight-logs` | GET/POST | load/save weight logs and today's manual activity calories |
 | `/api/rag/food-records/embed` | POST | embed food records |
 | `/api/rag/food-records/re-embed` | POST | delete and recreate embeddings |
 | `/api/rag/search` | POST | pgvector similarity search |

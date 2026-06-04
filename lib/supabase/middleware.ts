@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 
 type CookieToSet = {
   name: string;
@@ -27,51 +28,49 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  try {
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet: CookieToSet[]) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-            response = NextResponse.next({ request });
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options);
-            });
-          }
+  const supabase = createServerClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
         }
       }
-    );
+    }
+  );
 
+  let user: User | null = null;
+
+  try {
     const {
-      data: { user }
+      data: { user: currentUser }
     } = await supabase.auth.getUser();
 
-    if (!user && isProtectedPath) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/login";
-      redirectUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    if (user && pathname === "/login") {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/dashboard";
-      redirectUrl.search = "";
-      return NextResponse.redirect(redirectUrl);
-    }
+    user = currentUser;
   } catch {
-    if (isProtectedPath) {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/login";
-      redirectUrl.searchParams.set("next", pathname);
-      redirectUrl.searchParams.set("config", "supabase_middleware_error");
-      return NextResponse.redirect(redirectUrl);
-    }
+    user = null;
+  }
+
+  if (!user && isProtectedPath) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && pathname === "/login") {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/dashboard";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
   }
 
   return response;

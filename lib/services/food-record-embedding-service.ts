@@ -42,33 +42,54 @@ function buildFoodRecordDocument(
   const mealLabel = formatMealTypeKo(foodRecord.meal_type);
   const emotionLabel = formatEmotionKo(foodRecord.emotion);
   const contextLabel = formatContextKo(foodRecord.context);
-  const foodText = foodRecord.raw_text ?? "식사 내용 미입력";
-  const analysisText = analysisResults.length
-    ? analysisResults.map(formatAnalysisResultKo).join("\n")
-    : `${foodText} 섭취. 영양 분석 결과는 아직 없음.`;
-  const memoText = foodRecord.memo ? `메모: ${foodRecord.memo}` : "메모: 없음";
+  const foodName = getFoodName(foodRecord, analysisResults);
+  const nutrition = summarizeNutrition(analysisResults);
+  const memoText = foodRecord.memo
+    ? `사용자 메모: ${foodRecord.memo}.`
+    : "사용자 메모: 없음.";
 
   return [
     `${date} ${mealLabel}.`,
-    `${emotionLabel} 상태.`,
-    `${contextLabel} 상황.`,
-    analysisText,
+    `${emotionLabel} 상태에서 ${contextLabel}으로 ${foodName}을 섭취.`,
+    `총 ${nutrition.calories}.`,
+    `탄수화물 ${nutrition.carbohydrate}.`,
+    `단백질 ${nutrition.protein}.`,
+    `지방 ${nutrition.fat}.`,
     memoText
   ].join("\n");
 }
 
-function formatAnalysisResultKo(result: FoodAnalysisForEmbedding) {
-  return [
-    `${result.food_name} ${formatNumber(result.calories)}kcal 섭취.`,
-    `탄수화물 ${formatNumber(result.carbohydrate_g)}g.`,
-    `단백질 ${formatNumber(result.protein_g)}g.`,
-    `지방 ${formatNumber(result.fat_g)}g.`,
-    `당 ${formatNumber(result.sugar_g)}g.`,
-    `나트륨 ${formatNumber(result.sodium_mg)}mg.`,
-    result.serving_description ? `분량: ${result.serving_description}.` : null
-  ]
-    .filter(Boolean)
-    .join(" ");
+function getFoodName(
+  foodRecord: FoodRecordForEmbedding,
+  analysisResults: FoodAnalysisForEmbedding[]
+) {
+  const foodNames = analysisResults
+    .map((result) => result.food_name)
+    .filter(Boolean);
+
+  if (foodNames.length > 0) {
+    return foodNames.slice(0, 3).join(", ");
+  }
+
+  return foodRecord.raw_text ?? "식사";
+}
+
+function summarizeNutrition(analysisResults: FoodAnalysisForEmbedding[]) {
+  if (analysisResults.length === 0) {
+    return {
+      calories: "영양 분석 전",
+      carbohydrate: "영양 분석 전",
+      protein: "영양 분석 전",
+      fat: "영양 분석 전"
+    };
+  }
+
+  return {
+    calories: `${formatNutritionTotal(analysisResults, "calories")}kcal`,
+    carbohydrate: `${formatNutritionTotal(analysisResults, "carbohydrate_g")}g`,
+    protein: `${formatNutritionTotal(analysisResults, "protein_g")}g`,
+    fat: `${formatNutritionTotal(analysisResults, "fat_g")}g`
+  };
 }
 
 function buildFoodRecordTitle(
@@ -86,6 +107,25 @@ function buildFoodRecordTitle(
 
 function formatNumber(value: number | null) {
   return value ?? "unknown";
+}
+
+function formatNutritionTotal(
+  analysisResults: FoodAnalysisForEmbedding[],
+  key: keyof Pick<
+    FoodAnalysisForEmbedding,
+    "calories" | "carbohydrate_g" | "protein_g" | "fat_g"
+  >
+) {
+  const values = analysisResults
+    .map((result) => result[key])
+    .filter((value): value is number => typeof value === "number");
+
+  if (values.length === 0) {
+    return "unknown";
+  }
+
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return Number.isInteger(total) ? String(total) : total.toFixed(1);
 }
 
 function formatMealTypeKo(mealType: string | null) {

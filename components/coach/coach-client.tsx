@@ -134,7 +134,11 @@ export function CoachClient() {
                       : "rounded-2xl rounded-bl-sm bg-white text-foreground shadow-[0_8px_24px_rgb(0,0,0,0.05)]"
                   )}
                 >
-                  {message.content}
+                  {message.role === "assistant" ? (
+                    <CoachAnswer content={message.content} />
+                  ) : (
+                    message.content
+                  )}
                 </div>
               ))
             )}
@@ -181,4 +185,94 @@ export function CoachClient() {
       </Card>
     </div>
   );
+}
+
+function CoachAnswer({ content }: { content: string }) {
+  const lines = normalizeCoachAnswer(content)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-3">
+      {lines.map((line, index) => {
+        const heading = getHeadingText(line);
+        const bullet = getBulletText(line);
+
+        if (heading) {
+          return (
+            <div
+              key={`${line}-${index}`}
+              className="mt-2 inline-flex rounded-full bg-[#FFE7E1] px-3 py-1 text-sm font-semibold text-[#C2412D]"
+            >
+              {heading}
+            </div>
+          );
+        }
+
+        if (bullet) {
+          return (
+            <div
+              key={`${line}-${index}`}
+              className="flex gap-2 rounded-2xl bg-[#FAF8F5] px-3 py-2"
+            >
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF7E67]" />
+              <p className="leading-7">{renderInlineMarkdown(bullet)}</p>
+            </div>
+          );
+        }
+
+        return (
+          <p key={`${line}-${index}`} className="leading-7">
+            {renderInlineMarkdown(line)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function normalizeCoachAnswer(content: string) {
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/\s*(#{2,3}\s+[^\n]+)/g, "\n$1\n")
+    .replace(/\s*(\*\*\d+\.\s*[^*]+?\*\*)/g, "\n$1\n")
+    .replace(/\s+\*\s+/g, "\n- ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function getHeadingText(line: string) {
+  const markdownHeading = line.match(/^#{2,3}\s+(.+)$/);
+
+  if (markdownHeading) {
+    return stripMarkdown(markdownHeading[1]);
+  }
+
+  const boldHeading = line.match(/^\*\*(\d+\.\s*.+?)\*\*$/);
+
+  return boldHeading ? stripMarkdown(boldHeading[1]) : null;
+}
+
+function getBulletText(line: string) {
+  const bullet = line.match(/^[-*]\s+(.+)$/);
+  return bullet ? bullet[1] : null;
+}
+
+function renderInlineMarkdown(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={`${part}-${index}`} className="font-semibold text-[#302E2B]">
+          {stripMarkdown(part)}
+        </strong>
+      );
+    }
+
+    return <span key={`${part}-${index}`}>{part}</span>;
+  });
+}
+
+function stripMarkdown(text: string) {
+  return text.replace(/\*\*/g, "").trim();
 }

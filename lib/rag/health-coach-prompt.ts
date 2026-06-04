@@ -27,10 +27,21 @@ User question:
 ${question}
 
 Response format:
-1. 현재 상태 요약
-2. 기록 기반 근거
-3. 개인화 코칭
-4. 오늘 할 일
+- Use this exact Korean markdown structure.
+- Keep each bullet under 45 Korean characters when possible.
+- Do not write one long paragraph.
+
+### 현재 상태
+- ...
+
+### 기록 근거
+- ...
+
+### 코칭 제안
+- ...
+
+### 오늘 할 일
+- ...
 `.trim();
 }
 

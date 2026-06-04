@@ -16,12 +16,11 @@ import {
   Weight
 } from "lucide-react";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Line,
   LineChart,
   Pie,
@@ -70,6 +69,40 @@ type RagStatus = {
     error_message: string | null;
     created_at: string;
   }[];
+};
+
+const chartColors = {
+  coral: "#FF7E67",
+  mint: "#4ECDC4",
+  yellow: "#FFD166",
+  cream: "#FAF8F5",
+  card: "#FFFFFF",
+  beige: "#F0EDE9",
+  toast: "#8D8A85",
+  foreground: "#302E2B",
+  violet: "#B8A1FF"
+};
+
+const chartTooltipProps = {
+  contentStyle: {
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    border: `1px solid ${chartColors.beige}`,
+    borderRadius: "18px",
+    boxShadow: "0 12px 32px rgba(0, 0, 0, 0.08)",
+    color: chartColors.foreground
+  },
+  labelStyle: {
+    color: chartColors.foreground,
+    fontWeight: 700
+  },
+  itemStyle: {
+    color: chartColors.foreground,
+    fontWeight: 600
+  },
+  cursor: {
+    fill: "rgba(255, 126, 103, 0.08)",
+    stroke: "rgba(255, 126, 103, 0.18)"
+  }
 };
 
 const fallbackMeals: DashboardMeal[] = [
@@ -142,10 +175,10 @@ const fallbackCalorieData = [
 ];
 
 const fallbackNutrientData = [
-  { name: "Carbs", value: 214, target: 250, color: "#0f766e" },
-  { name: "Protein", value: 102, target: 120, color: "#0284c7" },
-  { name: "Fat", value: 58, target: 70, color: "#f59e0b" },
-  { name: "Sugar", value: 42, target: 50, color: "#e11d48" }
+  { name: "Carbs", value: 214, target: 250, color: chartColors.mint },
+  { name: "Protein", value: 102, target: 120, color: chartColors.coral },
+  { name: "Fat", value: 58, target: 70, color: chartColors.yellow },
+  { name: "Sugar", value: 42, target: 50, color: chartColors.violet }
 ];
 
 const weightPredictionData = [
@@ -157,10 +190,10 @@ const weightPredictionData = [
 ];
 
 const emotionData = [
-  { emotion: "Calm", meals: 3, color: "#0f766e" },
-  { emotion: "Focused", meals: 2, color: "#0284c7" },
-  { emotion: "Tired", meals: 2, color: "#f59e0b" },
-  { emotion: "Stressed", meals: 1, color: "#e11d48" }
+  { emotion: "Calm", meals: 3, color: chartColors.mint },
+  { emotion: "Focused", meals: 2, color: chartColors.coral },
+  { emotion: "Tired", meals: 2, color: chartColors.yellow },
+  { emotion: "Stressed", meals: 1, color: chartColors.violet }
 ];
 
 const coachMessages = [
@@ -508,26 +541,40 @@ export function DashboardClient() {
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={calorieChartData} margin={{ left: -18, right: 8, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d6d3d1" />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="burn"
-                    stroke="#0284c7"
-                    fill="#bae6fd"
-                    name="TDEE"
+                <ComposedChart data={calorieChartData} margin={{ left: -18, right: 12, top: 12 }}>
+                  <CartesianGrid
+                    vertical={false}
+                    stroke={chartColors.beige}
+                    strokeDasharray="4 8"
                   />
-                  <Area
-                    type="monotone"
+                  <XAxis
+                    dataKey="day"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: chartColors.toast, fontSize: 12 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: chartColors.toast, fontSize: 12 }}
+                  />
+                  <Tooltip {...chartTooltipProps} />
+                  <Bar
                     dataKey="intake"
-                    stroke="#0f766e"
-                    fill="#ccfbf1"
+                    fill={chartColors.coral}
+                    radius={[10, 10, 0, 0]}
                     name="Intake"
                   />
-                </AreaChart>
+                  <Line
+                    type="monotone"
+                    dataKey="burn"
+                    stroke={chartColors.mint}
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: chartColors.card, stroke: chartColors.mint, strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: chartColors.mint, stroke: chartColors.card, strokeWidth: 3 }}
+                    name="TDEE"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -544,12 +591,25 @@ export function DashboardClient() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={nutrientChartData} margin={{ left: -18, right: 8, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d6d3d1" />
-                  <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
-                  <Tooltip />
-                  <Bar dataKey="target" fill="#e7e5e4" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  <CartesianGrid
+                    vertical={false}
+                    stroke={chartColors.beige}
+                    strokeDasharray="4 8"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: chartColors.toast, fontSize: 12 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: chartColors.toast, fontSize: 12 }}
+                  />
+                  <Tooltip {...chartTooltipProps} />
+                  <Bar dataKey="target" fill={chartColors.beige} radius={[10, 10, 0, 0]} />
+                  <Bar dataKey="value" radius={[10, 10, 0, 0]}>
                     {nutrientChartData.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
@@ -569,24 +629,38 @@ export function DashboardClient() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={weightPredictionData} margin={{ left: -18, right: 16, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d6d3d1" />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                  <YAxis domain={[66, 69]} tickLine={false} axisLine={false} />
-                  <Tooltip />
+                  <CartesianGrid
+                    vertical={false}
+                    stroke={chartColors.beige}
+                    strokeDasharray="4 8"
+                  />
+                  <XAxis
+                    dataKey="day"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: chartColors.toast, fontSize: 12 }}
+                  />
+                  <YAxis
+                    domain={[66, 69]}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: chartColors.toast, fontSize: 12 }}
+                  />
+                  <Tooltip {...chartTooltipProps} />
                   <Line
                     type="monotone"
                     dataKey="predicted"
-                    stroke="#0f766e"
+                    stroke={chartColors.coral}
                     strokeWidth={3}
-                    dot={{ r: 4 }}
+                    dot={{ r: 4, fill: chartColors.card, stroke: chartColors.coral, strokeWidth: 2 }}
                     name="Predicted kg"
                   />
                   <Line
                     type="monotone"
                     dataKey="actual"
-                    stroke="#0284c7"
+                    stroke={chartColors.mint}
                     strokeWidth={3}
-                    dot={{ r: 4 }}
+                    dot={{ r: 4, fill: chartColors.card, stroke: chartColors.mint, strokeWidth: 2 }}
                     name="Actual kg"
                   />
                 </LineChart>
@@ -618,10 +692,15 @@ export function DashboardClient() {
                       paddingAngle={4}
                     >
                       {emotionData.map((entry) => (
-                        <Cell key={entry.emotion} fill={entry.color} />
+                        <Cell
+                          key={entry.emotion}
+                          fill={entry.color}
+                          stroke={chartColors.card}
+                          strokeWidth={3}
+                        />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip {...chartTooltipProps} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -801,10 +880,10 @@ function buildRecentSevenDayNutrientData(meals: DashboardMeal[]) {
   );
 
   return [
-    { name: "Carbs", value: Math.round(totals.carbs), target: 250, color: "#0f766e" },
-    { name: "Protein", value: Math.round(totals.protein), target: 120, color: "#0284c7" },
-    { name: "Fat", value: Math.round(totals.fat), target: 70, color: "#f59e0b" },
-    { name: "Sugar", value: Math.round(totals.sugar), target: 50, color: "#e11d48" }
+    { name: "Carbs", value: Math.round(totals.carbs), target: 250, color: chartColors.mint },
+    { name: "Protein", value: Math.round(totals.protein), target: 120, color: chartColors.coral },
+    { name: "Fat", value: Math.round(totals.fat), target: 70, color: chartColors.yellow },
+    { name: "Sugar", value: Math.round(totals.sugar), target: 50, color: chartColors.violet }
   ];
 }
 

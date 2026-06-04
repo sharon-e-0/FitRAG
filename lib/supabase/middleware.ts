@@ -10,10 +10,26 @@ type CookieToSet = {
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
+  const protectedPaths = ["/dashboard", "/meals", "/coach", "/prediction"];
+  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (isProtectedPath) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/login";
+      redirectUrl.searchParams.set("next", pathname);
+      redirectUrl.searchParams.set("config", "missing_supabase_env");
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    return response;
+  }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -33,9 +49,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user }
   } = await supabase.auth.getUser();
-
-  const protectedPaths = ["/dashboard", "/meals", "/coach", "/prediction"];
-  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
 
   if (!user && isProtectedPath) {
     const redirectUrl = request.nextUrl.clone();

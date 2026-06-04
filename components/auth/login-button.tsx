@@ -11,6 +11,8 @@ export function LoginButton() {
   const [errorMessage, setErrorMessage] = useState<string | null>(
     searchParams.get("config") === "missing_supabase_env"
       ? "Supabase environment variables are missing in this deployment."
+      : searchParams.get("config") === "supabase_middleware_error"
+        ? "Supabase middleware failed. Check the Supabase URL and anon key in Vercel Production environment variables."
       : null
   );
 

@@ -43,7 +43,7 @@ create table if not exists public.food_analysis_results (
   food_record_id uuid not null references public.food_records(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   food_name text not null,
-  analysis_source text check (analysis_source in ('gemini', 'fallback')),
+  analysis_source text check (analysis_source in ('gemini', 'fallback', 'user_edit')),
   serving_description text,
   calories numeric(8,2) check (calories >= 0),
   carbohydrate_g numeric(8,2) check (carbohydrate_g >= 0),

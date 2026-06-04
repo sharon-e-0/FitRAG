@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -11,6 +12,7 @@ import {
   HeartPulse,
   MessageCircle,
   Moon,
+  Pencil,
   Send,
   Utensils,
   Weight
@@ -32,6 +34,7 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EditMealDialog } from "@/components/meals/edit-meal-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { predictWeight } from "@/lib/prediction/weight";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
@@ -56,6 +59,7 @@ type DashboardMeal = {
   eatenAt: string;
   time: string;
   tags: string[];
+  sourceRecord: FoodRecord | null;
 };
 
 type RagStatus = {
@@ -124,7 +128,8 @@ const fallbackMeals: DashboardMeal[] = [
     imageUrl: null,
     eatenAt: new Date().toISOString(),
     time: "08:10",
-    tags: ["calm", "home"]
+    tags: ["calm", "home"],
+    sourceRecord: null
   },
   {
     id: "sample-lunch",
@@ -138,7 +143,8 @@ const fallbackMeals: DashboardMeal[] = [
     imageUrl: null,
     eatenAt: new Date().toISOString(),
     time: "12:35",
-    tags: ["focused", "campus"]
+    tags: ["focused", "campus"],
+    sourceRecord: null
   },
   {
     id: "sample-snack",
@@ -152,7 +158,8 @@ const fallbackMeals: DashboardMeal[] = [
     imageUrl: null,
     eatenAt: new Date().toISOString(),
     time: "16:20",
-    tags: ["tired", "study"]
+    tags: ["tired", "study"],
+    sourceRecord: null
   },
   {
     id: "sample-dinner",
@@ -166,7 +173,8 @@ const fallbackMeals: DashboardMeal[] = [
     imageUrl: null,
     eatenAt: new Date().toISOString(),
     time: "19:05",
-    tags: ["relaxed", "home"]
+    tags: ["relaxed", "home"],
+    sourceRecord: null
   }
 ];
 
@@ -255,8 +263,10 @@ const summaryCards = [
 ];
 
 export function DashboardClient() {
+  const router = useRouter();
   const [savedMeals, setSavedMeals] = useState<DashboardMeal[]>([]);
   const [mealStatus, setMealStatus] = useState("Loading saved meals...");
+  const [editingMeal, setEditingMeal] = useState<FoodRecord | null>(null);
   const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
   const [ragStatusMessage, setRagStatusMessage] = useState("Loading RAG status...");
   const [isRefreshingRagStatus, setIsRefreshingRagStatus] = useState(false);
@@ -645,8 +655,22 @@ export function DashboardClient() {
                     ))}
                   </div>
                 </div>
-                <div className="text-sm font-semibold sm:text-right">
-                  {meal.calories === null ? "Pending analysis" : `${meal.calories} kcal`}
+                <div className="space-y-2 text-sm font-semibold sm:text-right">
+                  <div>
+                    {meal.calories === null ? "Pending analysis" : `${meal.calories} kcal`}
+                  </div>
+                  {meal.sourceRecord ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setEditingMeal(meal.sourceRecord)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      수정
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -938,6 +962,25 @@ export function DashboardClient() {
           </CardContent>
         </Card>
       </section>
+
+      <EditMealDialog
+        meal={editingMeal}
+        open={Boolean(editingMeal)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingMeal(null);
+          }
+        }}
+        onCompleted={(updatedMeal) => {
+          setSavedMeals((currentMeals) =>
+            currentMeals.map((meal) =>
+              meal.id === updatedMeal.id ? mapFoodRecordToMeal(updatedMeal) : meal
+            )
+          );
+          setEditingMeal(null);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }
@@ -1002,7 +1045,8 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
       record.emotion ?? "normal",
       record.context ?? "normal_meal",
       "saved"
-    ]
+    ],
+    sourceRecord: record
   };
 }
 

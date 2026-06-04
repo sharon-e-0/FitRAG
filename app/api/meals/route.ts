@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getAuthenticatedUser } from "@/lib/supabase/auth-user";
 import { createClient } from "@/lib/supabase/server";
-import { createMealSchema } from "@/lib/validation/meals";
+import { createMealSchema, updateMealSchema } from "@/lib/validation/meals";
 import type { CreateMealInput } from "@/lib/validation/meals";
 
 export const runtime = "nodejs";
@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         food_analysis_results (
           id,
           food_name,
+          analysis_source,
           calories,
           carbohydrate_g,
           protein_g,
@@ -124,6 +125,148 @@ export async function POST(request: Request) {
 
     console.error("[meals-post]", error);
     return NextResponse.json({ error: "Failed to save meal." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = createClient();
+    const { user, error: authError } = await getAuthenticatedUser(supabase, request);
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = updateMealSchema.parse(await request.json());
+    const { data: existingRecord, error: recordReadError } = await supabase
+      .from("food_records")
+      .select("id,user_id")
+      .eq("id", body.food_record_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (recordReadError || !existingRecord) {
+      return NextResponse.json({ error: "Meal record not found." }, { status: 404 });
+    }
+
+    const { data: existingAnalysis, error: analysisReadError } = await supabase
+      .from("food_analysis_results")
+      .select("id,analysis_source")
+      .eq("food_record_id", body.food_record_id)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (analysisReadError) {
+      throw analysisReadError;
+    }
+
+    const nextAnalysisSource =
+      existingAnalysis?.analysis_source === "fallback"
+        ? "user_edit"
+        : existingAnalysis?.analysis_source ?? "user_edit";
+
+    const { error: recordUpdateError } = await supabase
+      .from("food_records")
+      .update({
+        emotion: body.emotion,
+        context: body.context,
+        memo: body.memo ?? null
+      })
+      .eq("id", body.food_record_id)
+      .eq("user_id", user.id);
+
+    if (recordUpdateError) {
+      throw recordUpdateError;
+    }
+
+    const analysisPayload = {
+      user_id: user.id,
+      food_record_id: body.food_record_id,
+      food_name: body.food_name,
+      analysis_source: nextAnalysisSource,
+      calories: body.calories,
+      carbohydrate_g: body.carbs,
+      protein_g: body.protein,
+      fat_g: body.fat,
+      sugar_g: body.sugar,
+      sodium_mg: body.sodium,
+      confidence_score: nextAnalysisSource === "user_edit" ? 1 : 0.8,
+      raw_ai_response: {
+        food_name: body.food_name,
+        calories: body.calories,
+        carbs: body.carbs,
+        protein: body.protein,
+        fat: body.fat,
+        sugar: body.sugar,
+        sodium: body.sodium,
+        analysis_source: nextAnalysisSource,
+        edited_at: new Date().toISOString()
+      }
+    };
+
+    const analysisMutation = existingAnalysis
+      ? supabase
+          .from("food_analysis_results")
+          .update(analysisPayload)
+          .eq("id", existingAnalysis.id)
+          .eq("user_id", user.id)
+      : supabase.from("food_analysis_results").insert(analysisPayload);
+
+    const { error: analysisUpdateError } = await analysisMutation;
+
+    if (analysisUpdateError) {
+      throw analysisUpdateError;
+    }
+
+    const { data: meal, error: mealReadError } = await supabase
+      .from("food_records")
+      .select(`
+        id,
+        user_id,
+        input_type,
+        meal_type,
+        emotion,
+        context,
+        raw_text,
+        image_url,
+        memo,
+        eaten_at,
+        created_at,
+        updated_at,
+        food_analysis_results (
+          id,
+          food_name,
+          analysis_source,
+          calories,
+          carbohydrate_g,
+          protein_g,
+          fat_g,
+          sugar_g,
+          sodium_mg,
+          created_at
+        )
+      `)
+      .eq("id", body.food_record_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (mealReadError) {
+      throw mealReadError;
+    }
+
+    return NextResponse.json({ meal });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Invalid meal update input.", issues: error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    console.error("[meals-patch]", error);
+    return NextResponse.json({ error: "Failed to update meal." }, { status: 500 });
   }
 }
 

@@ -41,4 +41,19 @@ export const createMealSchema = z.object({
   analysis: foodAnalysisResultSchema
 });
 
+export const updateMealSchema = z.object({
+  food_record_id: z.string().uuid(),
+  food_name: z.string().trim().min(1).max(120),
+  calories: z.coerce.number().nonnegative().max(10000),
+  carbs: z.coerce.number().nonnegative().max(2000),
+  protein: z.coerce.number().nonnegative().max(2000),
+  fat: z.coerce.number().nonnegative().max(2000),
+  sugar: z.coerce.number().nonnegative().max(2000),
+  sodium: z.coerce.number().nonnegative().max(100000),
+  emotion: mealEmotionSchema,
+  context: mealContextSchema,
+  memo: z.string().trim().max(1000).optional()
+});
+
 export type CreateMealInput = z.infer<typeof createMealSchema>;
+export type UpdateMealInput = z.infer<typeof updateMealSchema>;

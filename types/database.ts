@@ -30,7 +30,7 @@ export type FoodRecord = {
 export type FoodAnalysisResultRow = {
   id: string;
   food_name: string;
-  analysis_source?: "gemini" | "fallback" | null;
+  analysis_source?: "gemini" | "fallback" | "user_edit" | null;
   calories: number | null;
   carbohydrate_g: number | null;
   protein_g: number | null;

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -43,7 +43,12 @@ type DashboardMeal = {
   type: string;
   name: string;
   calories: number | null;
+  carbs: number;
+  protein: number;
+  fat: number;
+  sugar: number;
   imageUrl: string | null;
+  eatenAt: string;
   time: string;
   tags: string[];
 };
@@ -73,7 +78,12 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Breakfast",
     name: "Greek yogurt, berries, oats",
     calories: 420,
+    carbs: 54,
+    protein: 28,
+    fat: 9,
+    sugar: 18,
     imageUrl: null,
+    eatenAt: new Date().toISOString(),
     time: "08:10",
     tags: ["calm", "home"]
   },
@@ -82,7 +92,12 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Lunch",
     name: "Chicken bibimbap",
     calories: 680,
+    carbs: 86,
+    protein: 38,
+    fat: 19,
+    sugar: 10,
     imageUrl: null,
+    eatenAt: new Date().toISOString(),
     time: "12:35",
     tags: ["focused", "campus"]
   },
@@ -91,7 +106,12 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Snack",
     name: "Iced latte, protein bar",
     calories: 310,
+    carbs: 35,
+    protein: 22,
+    fat: 8,
+    sugar: 20,
     imageUrl: null,
+    eatenAt: new Date().toISOString(),
     time: "16:20",
     tags: ["tired", "study"]
   },
@@ -100,13 +120,18 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Dinner",
     name: "Salmon, rice, salad",
     calories: 540,
+    carbs: 39,
+    protein: 42,
+    fat: 21,
+    sugar: 5,
     imageUrl: null,
+    eatenAt: new Date().toISOString(),
     time: "19:05",
     tags: ["relaxed", "home"]
   }
 ];
 
-const calorieData = [
+const fallbackCalorieData = [
   { day: "Mon", intake: 2050, burn: 2280 },
   { day: "Tue", intake: 1880, burn: 2210 },
   { day: "Wed", intake: 2130, burn: 2300 },
@@ -116,7 +141,7 @@ const calorieData = [
   { day: "Sun", intake: 1860, burn: 2290 }
 ];
 
-const nutrientData = [
+const fallbackNutrientData = [
   { name: "Carbs", value: 214, target: 250, color: "#0f766e" },
   { name: "Protein", value: 102, target: 120, color: "#0284c7" },
   { name: "Fat", value: 58, target: 70, color: "#f59e0b" },
@@ -195,6 +220,37 @@ export function DashboardClient() {
   const [mealStatus, setMealStatus] = useState("Loading saved meals...");
   const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
   const [ragStatusMessage, setRagStatusMessage] = useState("Loading RAG status...");
+  const [isRefreshingRagStatus, setIsRefreshingRagStatus] = useState(false);
+
+  const loadRagStatus = useCallback(async () => {
+    setIsRefreshingRagStatus(true);
+    setRagStatusMessage("Refreshing RAG status...");
+
+    try {
+      const response = await fetchWithSupabaseAuth("/api/rag/status", {
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load RAG status.");
+      }
+
+      const payload = (await response.json()) as RagStatus;
+      setRagStatus(payload);
+      setRagStatusMessage(
+        `RAG embedding diagnostics updated at ${new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit"
+        })}`
+      );
+    } catch (error) {
+      setRagStatusMessage(
+        error instanceof Error ? error.message : "Could not load RAG status."
+      );
+    } finally {
+      setIsRefreshingRagStatus(false);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -243,42 +299,25 @@ export function DashboardClient() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadRagStatus() {
-      try {
-        const response = await fetchWithSupabaseAuth("/api/rag/status", {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          throw new Error("Could not load RAG status.");
-        }
-
-        const payload = (await response.json()) as RagStatus;
-
-        if (isMounted) {
-          setRagStatus(payload);
-          setRagStatusMessage("RAG embedding diagnostics loaded");
-        }
-      } catch (error) {
-        if (isMounted) {
-          setRagStatusMessage(
-            error instanceof Error ? error.message : "Could not load RAG status."
-          );
-        }
-      }
-    }
-
     loadRagStatus();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  }, [loadRagStatus]);
 
   const todayMeals = useMemo(
     () => (savedMeals.length > 0 ? savedMeals : fallbackMeals),
+    [savedMeals]
+  );
+  const calorieChartData = useMemo(
+    () =>
+      savedMeals.length > 0
+        ? buildRecentSevenDayCalorieData(savedMeals)
+        : fallbackCalorieData,
+    [savedMeals]
+  );
+  const nutrientChartData = useMemo(
+    () =>
+      savedMeals.length > 0
+        ? buildRecentSevenDayNutrientData(savedMeals)
+        : fallbackNutrientData,
     [savedMeals]
   );
   const totalCalories = todayMeals.reduce(
@@ -332,7 +371,17 @@ export function DashboardClient() {
               Embedding generation health from rag_documents
             </p>
           </div>
-          <Database className="h-5 w-5 text-primary" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={loadRagStatus}
+            disabled={isRefreshingRagStatus}
+          >
+            <Database className="h-4 w-4" />
+            {isRefreshingRagStatus ? "Refreshing" : "Refresh"}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -459,7 +508,7 @@ export function DashboardClient() {
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={calorieData} margin={{ left: -18, right: 8, top: 8 }}>
+                <AreaChart data={calorieChartData} margin={{ left: -18, right: 8, top: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#d6d3d1" />
                   <XAxis dataKey="day" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} />
@@ -494,14 +543,14 @@ export function DashboardClient() {
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={nutrientData} margin={{ left: -18, right: 8, top: 8 }}>
+                <BarChart data={nutrientChartData} margin={{ left: -18, right: 8, top: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#d6d3d1" />
                   <XAxis dataKey="name" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip />
                   <Bar dataKey="target" fill="#e7e5e4" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {nutrientData.map((entry) => (
+                    {nutrientChartData.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Bar>
@@ -682,6 +731,22 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
     (sum, result) => sum + Number(result.calories ?? 0),
     0
   );
+  const carbs = analysisResults.reduce(
+    (sum, result) => sum + Number(result.carbohydrate_g ?? 0),
+    0
+  );
+  const protein = analysisResults.reduce(
+    (sum, result) => sum + Number(result.protein_g ?? 0),
+    0
+  );
+  const fat = analysisResults.reduce(
+    (sum, result) => sum + Number(result.fat_g ?? 0),
+    0
+  );
+  const sugar = analysisResults.reduce(
+    (sum, result) => sum + Number(result.sugar_g ?? 0),
+    0
+  );
   const foodNames = analysisResults
     .map((result) => result.food_name)
     .filter(Boolean)
@@ -692,7 +757,12 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
     type: formatMealType(record.meal_type),
     name: foodNames || record.raw_text || record.memo || "Saved meal",
     calories: calories > 0 ? Math.round(calories) : null,
+    carbs,
+    protein,
+    fat,
+    sugar,
     imageUrl: record.image_url,
+    eatenAt: record.eaten_at,
     time,
     tags: [
       record.input_type,
@@ -701,6 +771,56 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
       "saved"
     ]
   };
+}
+
+function buildRecentSevenDayCalorieData(meals: DashboardMeal[]) {
+  return getRecentSevenDays().map((day) => {
+    const intake = meals
+      .filter((meal) => meal.eatenAt.slice(0, 10) === day.dateKey)
+      .reduce((sum, meal) => sum + (meal.calories ?? 0), 0);
+
+    return {
+      day: day.label,
+      intake: Math.round(intake),
+      burn: 2200
+    };
+  });
+}
+
+function buildRecentSevenDayNutrientData(meals: DashboardMeal[]) {
+  const recentDateKeys = new Set(getRecentSevenDays().map((day) => day.dateKey));
+  const recentMeals = meals.filter((meal) => recentDateKeys.has(meal.eatenAt.slice(0, 10)));
+  const totals = recentMeals.reduce(
+    (sum, meal) => ({
+      carbs: sum.carbs + meal.carbs,
+      protein: sum.protein + meal.protein,
+      fat: sum.fat + meal.fat,
+      sugar: sum.sugar + meal.sugar
+    }),
+    { carbs: 0, protein: 0, fat: 0, sugar: 0 }
+  );
+
+  return [
+    { name: "Carbs", value: Math.round(totals.carbs), target: 250, color: "#0f766e" },
+    { name: "Protein", value: Math.round(totals.protein), target: 120, color: "#0284c7" },
+    { name: "Fat", value: Math.round(totals.fat), target: 70, color: "#f59e0b" },
+    { name: "Sugar", value: Math.round(totals.sugar), target: 50, color: "#e11d48" }
+  ];
+}
+
+function getRecentSevenDays() {
+  const formatter = new Intl.DateTimeFormat("en", { weekday: "short" });
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+
+    return {
+      dateKey: date.toISOString().slice(0, 10),
+      label: formatter.format(date)
+    };
+  });
 }
 
 function formatMealType(mealType: FoodRecord["meal_type"]) {

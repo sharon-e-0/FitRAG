@@ -39,3 +39,13 @@ export type FoodAnalysisResultRow = {
   sodium_mg: number | null;
   created_at: string;
 };
+
+export type WeightLog = {
+  id: string;
+  user_id: string;
+  weight_kg: number;
+  memo: string | null;
+  logged_date: string;
+  created_at: string;
+  updated_at: string;
+};

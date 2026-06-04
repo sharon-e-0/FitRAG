@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   Line,
   LineChart,
@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +17,8 @@ import {
   type BiologicalSex,
   predictWeight
 } from "@/lib/prediction/weight";
+import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
+import type { WeightLog } from "@/types/database";
 
 const activityLevels: { value: ActivityLevel; label: string }[] = [
   { value: "sedentary", label: "Sedentary" },
@@ -34,6 +37,54 @@ export function PredictionClient() {
   const [targetWeightKg, setTargetWeightKg] = useState(64);
   const [avgDailyIntakeCalories, setAvgDailyIntakeCalories] = useState(1950);
   const [avgDailyExerciseCalories, setAvgDailyExerciseCalories] = useState(120);
+  const [weightLogStatus, setWeightLogStatus] = useState("Loading latest weight log...");
+  const [isSavingWeight, setIsSavingWeight] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLatestWeightLog() {
+      try {
+        const response = await fetchWithSupabaseAuth("/api/weight-logs", {
+          cache: "no-store"
+        });
+
+        if (response.status === 401) {
+          throw new Error("Login is required to load weight logs.");
+        }
+
+        if (!response.ok) {
+          throw new Error("Could not load weight logs.");
+        }
+
+        const payload = (await response.json()) as { weight_logs?: WeightLog[] };
+        const latestLog = payload.weight_logs?.[0];
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (latestLog) {
+          setCurrentWeightKg(Number(latestLog.weight_kg));
+          setWeightLogStatus(`Latest saved weight: ${latestLog.logged_date}`);
+        } else {
+          setWeightLogStatus("No saved weight yet. Save today's weight to start tracking.");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setWeightLogStatus(
+            error instanceof Error ? error.message : "Could not load weight logs."
+          );
+        }
+      }
+    }
+
+    loadLatestWeightLog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const prediction = useMemo(
     () =>
@@ -118,6 +169,18 @@ export function PredictionClient() {
                 step={0.1}
                 onChange={setCurrentWeightKg}
               />
+              <form className="space-y-2" onSubmit={handleSaveWeightLog}>
+                <Button
+                  className="w-full"
+                  type="submit"
+                  disabled={isSavingWeight || currentWeightKg <= 0}
+                >
+                  {isSavingWeight ? "Saving..." : "Save current weight"}
+                </Button>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {weightLogStatus}
+                </p>
+              </form>
               <NumberField
                 label="Target kg"
                 value={targetWeightKg}
@@ -196,6 +259,46 @@ export function PredictionClient() {
       </section>
     </div>
   );
+
+  async function handleSaveWeightLog(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingWeight(true);
+    setWeightLogStatus("Saving today's weight...");
+
+    try {
+      const response = await fetchWithSupabaseAuth("/api/weight-logs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          weight_kg: currentWeightKg,
+          logged_date: new Date().toISOString().slice(0, 10)
+        })
+      });
+
+      if (response.status === 401) {
+        throw new Error("Login is required to save weight.");
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to save weight.");
+      }
+
+      const payload = (await response.json()) as { weight_log?: WeightLog };
+      setWeightLogStatus(
+        payload.weight_log
+          ? `Saved ${Number(payload.weight_log.weight_kg).toFixed(1)}kg for ${payload.weight_log.logged_date}.`
+          : "Weight saved."
+      );
+    } catch (error) {
+      setWeightLogStatus(
+        error instanceof Error ? error.message : "Failed to save weight."
+      );
+    } finally {
+      setIsSavingWeight(false);
+    }
+  }
 }
 
 function NumberField({

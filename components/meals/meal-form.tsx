@@ -3,11 +3,26 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  BatteryLow,
+  BriefcaseBusiness,
+  CloudRain,
+  Flame,
+  Home,
+  Laugh,
+  Meh,
+  Moon,
+  Timer,
+  Truck,
+  Utensils,
+  Zap
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
+import { cn } from "@/lib/utils";
 import type { FoodAnalysisResult } from "@/types/food-analysis";
 
 const supportedImageTypes = new Set([
@@ -32,21 +47,81 @@ const mealTypes = [
 ];
 
 const mealEmotions = [
-  { value: "happy", label: "Happy" },
-  { value: "normal", label: "Normal" },
-  { value: "stress", label: "Stress" },
-  { value: "tired", label: "Tired" },
-  { value: "sad", label: "Sad" },
-  { value: "angry", label: "Angry" }
+  {
+    value: "happy",
+    label: "Happy",
+    Icon: Laugh,
+    className: "border-[#FFD166] bg-[#FFF4CC] text-[#8A6200]"
+  },
+  {
+    value: "normal",
+    label: "Normal",
+    Icon: Meh,
+    className: "border-[#4ECDC4]/40 bg-[#DDF8F6] text-[#247A74]"
+  },
+  {
+    value: "stress",
+    label: "Stress",
+    Icon: Zap,
+    className: "border-[#C4A7FF]/50 bg-[#F0E8FF] text-[#6C46C7]"
+  },
+  {
+    value: "tired",
+    label: "Tired",
+    Icon: BatteryLow,
+    className: "border-[#8D8A85]/25 bg-[#F0EDE9] text-[#6D6963]"
+  },
+  {
+    value: "sad",
+    label: "Sad",
+    Icon: CloudRain,
+    className: "border-[#93C5FD]/50 bg-[#E8F3FF] text-[#2563A8]"
+  },
+  {
+    value: "angry",
+    label: "Angry",
+    Icon: Flame,
+    className: "border-[#FF7E67]/40 bg-[#FFE7E1] text-[#C2412D]"
+  }
 ];
 
 const mealContexts = [
-  { value: "normal_meal", label: "Normal meal" },
-  { value: "company_dinner", label: "Company dinner" },
-  { value: "late_night", label: "Late night" },
-  { value: "delivery", label: "Delivery" },
-  { value: "home_meal", label: "Home meal" },
-  { value: "rushed", label: "Rushed" }
+  {
+    value: "normal_meal",
+    label: "Normal meal",
+    Icon: Utensils,
+    className: "border-[#4ECDC4]/40 bg-[#DDF8F6] text-[#247A74]"
+  },
+  {
+    value: "company_dinner",
+    label: "Company dinner",
+    Icon: BriefcaseBusiness,
+    className: "border-[#C4A7FF]/50 bg-[#F0E8FF] text-[#6C46C7]"
+  },
+  {
+    value: "late_night",
+    label: "Late night",
+    Icon: Moon,
+    className: "border-[#93C5FD]/50 bg-[#E8F3FF] text-[#2563A8]"
+  },
+  {
+    value: "delivery",
+    label: "Delivery",
+    Icon: Truck,
+    className: "border-[#FFD166] bg-[#FFF4CC] text-[#8A6200]"
+  },
+  {
+    value: "home_meal",
+    label: "Home meal",
+    Icon: Home,
+    className: "border-[#FFB6A6]/60 bg-[#FFECE7] text-[#B34E3F]"
+  },
+  {
+    value: "rushed",
+    label: "Rushed",
+    Icon: Timer,
+    className: "border-[#FF7E67]/40 bg-[#FFE7E1] text-[#C2412D]"
+  }
 ];
 
 const nutrientFields = [
@@ -59,6 +134,12 @@ const nutrientFields = [
 ] as const;
 
 type NumericAnalysisKey = (typeof nutrientFields)[number]["key"];
+type PickerOption = {
+  value: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+  className: string;
+};
 
 export function MealForm() {
   const router = useRouter();
@@ -70,6 +151,8 @@ export function MealForm() {
   const [analysis, setAnalysis] = useState<FoodAnalysisResult | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedEmotion, setSelectedEmotion] = useState("normal");
+  const [selectedContext, setSelectedContext] = useState("normal_meal");
 
   useEffect(() => {
     if (!selectedImage) {
@@ -197,8 +280,8 @@ export function MealForm() {
     const formData = new FormData(form);
     let rawText = String(formData.get("rawText") ?? "").trim();
     const mealType = String(formData.get("mealType") ?? "other");
-    const emotion = String(formData.get("emotion") ?? "normal");
-    const context = String(formData.get("context") ?? "normal_meal");
+    const emotion = selectedEmotion;
+    const context = selectedContext;
     const eatenAt = String(formData.get("eatenAt") ?? "");
 
     if (!rawText && !selectedImage) {
@@ -290,7 +373,7 @@ export function MealForm() {
             <select
               name="mealType"
               defaultValue="other"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-2xl border border-[#F0EDE9] bg-white px-3 py-2 text-sm transition-colors focus-visible:border-[#FF7E67] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7E67]/35"
             >
               {mealTypes.map((mealType) => (
                 <option key={mealType.value} value={mealType.value}>
@@ -300,29 +383,21 @@ export function MealForm() {
             </select>
             <Input name="eatenAt" type="datetime-local" />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <select
-              name="emotion"
-              defaultValue="normal"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {mealEmotions.map((emotion) => (
-                <option key={emotion.value} value={emotion.value}>
-                  {emotion.label}
-                </option>
-              ))}
-            </select>
-            <select
-              name="context"
-              defaultValue="normal_meal"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {mealContexts.map((context) => (
-                <option key={context.value} value={context.value}>
-                  {context.label}
-                </option>
-              ))}
-            </select>
+          <input type="hidden" name="emotion" value={selectedEmotion} />
+          <input type="hidden" name="context" value={selectedContext} />
+          <div className="grid gap-4">
+            <TagPicker
+              label="Emotion"
+              options={mealEmotions}
+              value={selectedEmotion}
+              onChange={setSelectedEmotion}
+            />
+            <TagPicker
+              label="Situation"
+              options={mealContexts}
+              value={selectedContext}
+              onChange={setSelectedContext}
+            />
           </div>
           <Textarea
             name="rawText"
@@ -330,7 +405,7 @@ export function MealForm() {
             rows={6}
             onChange={() => setAnalysis(null)}
           />
-          <div className="grid gap-3 rounded-md border border-dashed bg-muted/20 p-4">
+          <div className="grid gap-3 rounded-3xl border border-dashed border-[#F0EDE9] bg-white/70 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium">Meal image</p>
@@ -350,7 +425,7 @@ export function MealForm() {
             {selectedImage ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 {previewUrl ? (
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border bg-background sm:w-56">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-[#F0EDE9] bg-background sm:w-56">
                     <Image
                       src={previewUrl}
                       alt="Selected meal"
@@ -360,7 +435,7 @@ export function MealForm() {
                     />
                   </div>
                 ) : (
-                  <div className="flex min-h-28 w-full items-center justify-center rounded-md border bg-background px-3 text-center text-sm text-muted-foreground sm:w-56">
+                  <div className="flex min-h-28 w-full items-center justify-center rounded-3xl border border-[#F0EDE9] bg-background px-3 text-center text-sm text-muted-foreground sm:w-56">
                     {selectedImage.name}
                   </div>
                 )}
@@ -387,17 +462,17 @@ export function MealForm() {
             </Button>
           </div>
           {analysis ? (
-            <div className="grid gap-4 rounded-md border bg-muted/30 p-4 text-sm">
+            <div className="grid gap-4 rounded-3xl border border-[#F0EDE9] bg-[#FFFDFB] p-4 text-sm shadow-[0_8px_30px_rgb(0,0,0,0.03)]">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">Analysis result</span>
                 {analysis.analysis_source === "fallback" ? (
-                  <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800">
+                  <span className="rounded-full border border-[#FFD166] bg-[#FFF4CC] px-3 py-1 text-xs font-medium text-[#8A6200]">
                     fallback estimate - review required
                   </span>
                 ) : null}
               </div>
               {analysis.analysis_source === "fallback" && analysis.warning ? (
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                <p className="rounded-2xl border border-[#FFD166] bg-[#FFF4CC] px-3 py-2 text-xs leading-5 text-[#8A6200]">
                   {analysis.warning}
                 </p>
               ) : null}
@@ -432,6 +507,50 @@ export function MealForm() {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function TagPicker({
+  label,
+  options,
+  value,
+  onChange
+}: {
+  label: string;
+  options: PickerOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const isSelected = value === option.value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7E67]/35",
+                option.className,
+                isSelected
+                  ? "scale-[1.03] ring-2 ring-[#FF7E67]/35"
+                  : "opacity-80 hover:opacity-100"
+              )}
+              aria-pressed={isSelected}
+              onClick={() => onChange(option.value)}
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/70">
+                <option.Icon className="h-4 w-4" />
+              </span>
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

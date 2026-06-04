@@ -359,8 +359,8 @@ export function DashboardClient() {
   );
 
   return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className="space-y-8">
+      <section className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">FitRAG Dashboard</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-normal">Daily health cockpit</h1>
@@ -369,14 +369,14 @@ export function DashboardClient() {
             prediction, and RAG coaching in one view.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm">
+        <div className="flex items-center gap-2 rounded-full border border-[#F0EDE9] bg-card px-4 py-3 text-sm shadow-[0_8px_24px_rgb(0,0,0,0.04)]">
           <HeartPulse className="h-4 w-4 text-primary" />
           <span className="font-medium">Readiness 82</span>
           <span className="text-muted-foreground">stable</span>
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((item) => (
           <Card key={item.label}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -399,7 +399,12 @@ export function DashboardClient() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle>RAG admin status</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DDF8F6] text-[#247A74]">
+                <Database className="h-5 w-5" />
+              </span>
+              RAG admin status
+            </CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
               Embedding generation health from rag_documents
             </p>
@@ -417,7 +422,7 @@ export function DashboardClient() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <RagMetric
               label="Total documents"
               value={ragStatus?.total_documents ?? "-"}
@@ -435,8 +440,8 @@ export function DashboardClient() {
               value={ragStatus ? `${ragStatus.embedding_rate}%` : "-"}
             />
           </div>
-          <div className="grid gap-3 lg:grid-cols-[0.7fr_1.3fr]">
-            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+          <div className="grid gap-4 lg:grid-cols-[0.7fr_1.3fr]">
+            <div className="rounded-2xl border border-[#F0EDE9] bg-[#FAF8F5] p-4 text-sm">
               <p className="font-medium">Recent 50 documents</p>
               <div className="mt-2 space-y-1 text-muted-foreground">
                 <p>Total: {ragStatus?.recent_50.total_documents ?? "-"}</p>
@@ -444,12 +449,12 @@ export function DashboardClient() {
                 <p>Embedding missing: {ragStatus?.recent_50.missing_embeddings ?? "-"}</p>
               </div>
             </div>
-            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="rounded-2xl border border-[#F0EDE9] bg-[#FAF8F5] p-4 text-sm">
               <p className="font-medium">Recent embedding failures</p>
               {ragStatus?.recent_failures.length ? (
                 <div className="mt-2 space-y-2">
                   {ragStatus.recent_failures.map((failure) => (
-                    <div key={failure.id} className="rounded-md border bg-background p-2">
+                    <div key={failure.id} className="rounded-2xl border border-[#F0EDE9] bg-background p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">{failure.reason}</span>
                         <span className="text-xs text-muted-foreground">
@@ -471,11 +476,16 @@ export function DashboardClient() {
         </CardContent>
       </Card>
 
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle>Today&apos;s meals</CardTitle>
+              <CardTitle className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DDF8F6] text-[#247A74]">
+                  <Utensils className="h-5 w-5" />
+                </span>
+                Today&apos;s meals
+              </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
                 {savedMeals.length > 0
                   ? `${todayMeals.length} saved meals, ${totalCalories.toLocaleString()} analyzed kcal`
@@ -489,10 +499,10 @@ export function DashboardClient() {
             {todayMeals.map((meal) => (
               <div
                 key={meal.id}
-                className="grid gap-3 rounded-md border p-3 sm:grid-cols-[88px_64px_1fr_auto] sm:items-center"
+                className="grid gap-4 rounded-2xl border border-[#F0EDE9] bg-[#FAF8F5] p-4 sm:grid-cols-[88px_64px_1fr_auto] sm:items-center"
               >
                 <div className="text-sm font-medium">{meal.time}</div>
-                <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
+                <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-[#F0EDE9] bg-muted">
                   {meal.imageUrl ? (
                     <Image
                       src={meal.imageUrl}
@@ -510,7 +520,7 @@ export function DashboardClient() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{meal.name}</span>
-                    <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                    <span className="rounded-full bg-[#FFF4CC] px-3 py-1 text-xs text-[#8A6200]">
                       {meal.type}
                     </span>
                   </div>
@@ -518,7 +528,7 @@ export function DashboardClient() {
                     {meal.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="rounded-md border px-2 py-1 text-xs text-muted-foreground"
+                        className="rounded-full border border-[#F0EDE9] bg-white px-3 py-1 text-xs text-muted-foreground"
                       >
                         {tag}
                       </span>
@@ -535,7 +545,12 @@ export function DashboardClient() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Calorie summary</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFE7E1] text-[#FF7E67]">
+                <Flame className="h-5 w-5" />
+              </span>
+              Calorie summary
+            </CardTitle>
             <p className="text-sm text-muted-foreground">Intake compared with TDEE</p>
           </CardHeader>
           <CardContent>
@@ -581,10 +596,15 @@ export function DashboardClient() {
         </Card>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Nutrient chart</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DDF8F6] text-[#247A74]">
+                <Utensils className="h-5 w-5" />
+              </span>
+              Nutrient chart
+            </CardTitle>
             <p className="text-sm text-muted-foreground">Current grams against target</p>
           </CardHeader>
           <CardContent>
@@ -622,7 +642,12 @@ export function DashboardClient() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Weight prediction</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFF4CC] text-[#8A6200]">
+                <Weight className="h-5 w-5" />
+              </span>
+              Weight prediction
+            </CardTitle>
             <p className="text-sm text-muted-foreground">Rule-based 30 day forecast</p>
           </CardHeader>
           <CardContent>
@@ -666,7 +691,7 @@ export function DashboardClient() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-3 flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+            <div className="mt-3 flex items-center justify-between rounded-2xl border border-[#F0EDE9] bg-[#FAF8F5] px-4 py-3 text-sm">
               <span className="text-muted-foreground">Goal arrival</span>
               <span className="font-medium">Jul 26, 2026</span>
             </div>
@@ -675,7 +700,12 @@ export function DashboardClient() {
 
         <Card className="lg:col-span-2 xl:col-span-1">
           <CardHeader>
-            <CardTitle>Emotion report</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFE7E1] text-[#FF7E67]">
+                <HeartPulse className="h-5 w-5" />
+              </span>
+              Emotion report
+            </CardTitle>
             <p className="text-sm text-muted-foreground">Meal-linked emotional signals</p>
           </CardHeader>
           <CardContent>
@@ -717,7 +747,7 @@ export function DashboardClient() {
                     <span className="font-medium">{item.meals} meals</span>
                   </div>
                 ))}
-                <div className="rounded-md border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
+                <div className="rounded-2xl border border-[#F0EDE9] bg-[#FAF8F5] p-4 text-sm leading-6 text-muted-foreground">
                   Afternoon fatigue appears before higher sugar intake. Protein-rich
                   snacks are likely to reduce late cravings.
                 </div>
@@ -727,10 +757,15 @@ export function DashboardClient() {
         </Card>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <section className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Health signals</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DDF8F6] text-[#247A74]">
+                <Activity className="h-5 w-5" />
+              </span>
+              Health signals
+            </CardTitle>
             <p className="text-sm text-muted-foreground">Patterns detected from today</p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -744,30 +779,35 @@ export function DashboardClient() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <CardTitle>AI coach chat</CardTitle>
+              <CardTitle className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFE7E1] text-[#FF7E67]">
+                  <Bot className="h-5 w-5" />
+                </span>
+                AI coach chat
+              </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
                 RAG answer grounded in your personal records
               </p>
             </div>
-            <Bot className="h-5 w-5 text-primary" />
+            <MessageCircle className="h-5 w-5 text-[#4ECDC4]" />
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="max-h-80 space-y-3 overflow-y-auto rounded-md border bg-muted/30 p-3">
+            <div className="max-h-80 space-y-4 overflow-y-auto rounded-3xl border border-[#F0EDE9] bg-[#FAF8F5] p-4">
               {coachMessages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
                   className={cn(
-                    "max-w-[88%] rounded-md px-3 py-2 text-sm leading-6",
+                    "max-w-[88%] px-4 py-3 text-sm leading-6",
                     message.role === "user"
-                      ? "ml-auto bg-primary text-primary-foreground"
-                      : "bg-card"
+                      ? "ml-auto rounded-2xl rounded-br-sm bg-[#FF7E67] text-white shadow-[0_10px_24px_rgba(255,126,103,0.24)]"
+                      : "rounded-2xl rounded-bl-sm bg-white shadow-[0_8px_24px_rgb(0,0,0,0.05)]"
                   )}
                 >
                   {message.content}
                 </div>
               ))}
             </div>
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
               <Textarea
                 className="min-h-20"
                 placeholder="Ask about meals, emotion, activity, or weight prediction."
@@ -790,7 +830,7 @@ export function DashboardClient() {
 
 function RagMetric({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-md border px-3 py-3">
+    <div className="rounded-2xl border border-[#F0EDE9] bg-white px-4 py-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
@@ -923,7 +963,7 @@ function SignalRow({
   trend: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#F0EDE9] bg-[#FAF8F5] px-4 py-4">
       <div className="min-w-0">
         <p className="text-sm font-medium">{label}</p>
         <p className="mt-1 truncate text-sm text-muted-foreground">{trend}</p>

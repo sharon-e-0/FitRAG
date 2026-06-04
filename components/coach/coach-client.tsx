@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
+import { cn } from "@/lib/utils";
 import type { RagSearchResult } from "@/types/rag";
 
 type CoachMessage = {
@@ -88,30 +89,33 @@ export function CoachClient() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFE7E1] text-[#FF7E67]">
+              <Bot className="h-5 w-5" />
+            </span>
             RAG health coach
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="min-h-48 space-y-3 rounded-md border bg-muted/30 p-3">
+          <div className="min-h-64 space-y-4 rounded-3xl border border-[#F0EDE9] bg-[#FAF8F5] p-4">
             {messages.length === 0 ? (
-              <p className="text-sm leading-6 text-muted-foreground">
+              <div className="max-w-[86%] rounded-2xl rounded-bl-sm bg-white px-4 py-3 text-sm leading-6 text-muted-foreground shadow-[0_8px_24px_rgb(0,0,0,0.05)]">
                 Ask about recent eating patterns, emotional triggers, activity, or
                 expected weight movement.
-              </p>
+              </div>
             ) : (
               messages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
-                  className={
+                  className={cn(
+                    "max-w-[88%] px-4 py-3 text-sm leading-6",
                     message.role === "user"
-                      ? "ml-auto max-w-[88%] rounded-md bg-primary px-3 py-2 text-sm leading-6 text-primary-foreground"
-                      : "max-w-[88%] rounded-md bg-background px-3 py-2 text-sm leading-6"
-                  }
+                      ? "ml-auto rounded-2xl rounded-br-sm bg-[#FF7E67] text-white shadow-[0_10px_24px_rgba(255,126,103,0.24)]"
+                      : "rounded-2xl rounded-bl-sm bg-white text-foreground shadow-[0_8px_24px_rgb(0,0,0,0.05)]"
+                  )}
                 >
                   {message.content}
                 </div>
@@ -133,14 +137,19 @@ export function CoachClient() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Retrieved context</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DDF8F6] text-[#247A74]">
+              <Bot className="h-5 w-5" />
+            </span>
+            Retrieved context
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {retrievedDocuments.length === 0 ? (
             <p className="text-muted-foreground">No context retrieved yet.</p>
           ) : (
             retrievedDocuments.map((document) => (
-              <div key={document.id} className="rounded-md border p-3">
+              <div key={document.id} className="rounded-2xl border border-[#F0EDE9] bg-white p-3 shadow-[0_8px_24px_rgb(0,0,0,0.04)]">
                 <div className="font-medium">{document.title ?? document.source_type}</div>
                 <p className="mt-1 line-clamp-4 text-muted-foreground">
                   {document.content}

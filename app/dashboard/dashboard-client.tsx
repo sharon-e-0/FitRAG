@@ -663,7 +663,12 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
     name: record.raw_text ?? record.memo ?? "Saved meal",
     calories: null,
     time,
-    tags: [record.input_type, "saved"]
+    tags: [
+      record.input_type,
+      record.emotion ?? "normal",
+      record.context ?? "normal_meal",
+      "saved"
+    ]
   };
 }
 

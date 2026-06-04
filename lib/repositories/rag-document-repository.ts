@@ -14,7 +14,7 @@ export class RagDocumentRepository {
   async findFoodRecordForEmbedding(foodRecordId: string, userId: string) {
     const { data: foodRecord, error: foodRecordError } = await this.supabase
       .from("food_records")
-      .select("id,user_id,input_type,meal_type,raw_text,image_url,memo,eaten_at,created_at")
+      .select("id,user_id,input_type,meal_type,emotion,context,raw_text,image_url,memo,eaten_at,created_at")
       .eq("id", foodRecordId)
       .eq("user_id", userId)
       .single<FoodRecordForEmbedding>();

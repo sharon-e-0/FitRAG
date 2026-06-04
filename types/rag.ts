@@ -54,6 +54,8 @@ export type FoodRecordForEmbedding = {
   user_id: string;
   input_type: string;
   meal_type: string | null;
+  emotion: string | null;
+  context: string | null;
   raw_text: string | null;
   image_url: string | null;
   memo: string | null;

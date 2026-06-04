@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from("food_records")
-      .select("id,user_id,input_type,meal_type,raw_text,image_url,memo,eaten_at,created_at,updated_at")
+      .select("id,user_id,input_type,meal_type,emotion,context,raw_text,image_url,memo,eaten_at,created_at,updated_at")
       .eq("user_id", user.id)
       .order("eaten_at", { ascending: false })
       .limit(50);
@@ -49,11 +49,13 @@ export async function POST(request: Request) {
         user_id: user.id,
         input_type: "text",
         meal_type: body.meal_type,
+        emotion: body.emotion,
+        context: body.context,
         raw_text: body.raw_text,
         memo: body.memo ?? null,
         eaten_at: body.eaten_at ?? new Date().toISOString()
       })
-      .select("id,user_id,input_type,meal_type,raw_text,image_url,memo,eaten_at,created_at,updated_at")
+      .select("id,user_id,input_type,meal_type,emotion,context,raw_text,image_url,memo,eaten_at,created_at,updated_at")
       .single();
 
     if (error) {

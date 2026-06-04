@@ -128,7 +128,7 @@ async function getRecentMealDocuments(
 ): Promise<RagSearchResult[]> {
   const { data, error } = await supabase
     .from("food_records")
-    .select("id,user_id,input_type,meal_type,raw_text,image_url,memo,eaten_at,created_at,updated_at")
+    .select("id,user_id,input_type,meal_type,emotion,context,raw_text,image_url,memo,eaten_at,created_at,updated_at")
     .eq("user_id", userId)
     .order("eaten_at", { ascending: false })
     .limit(limit);
@@ -146,6 +146,8 @@ async function getRecentMealDocuments(
     content: [
       `Date: ${record.eaten_at}`,
       `Meal type: ${record.meal_type ?? "unknown"}`,
+      `Emotion: ${record.emotion ?? "normal"}`,
+      `Context: ${record.context ?? "normal_meal"}`,
       `Input type: ${record.input_type}`,
       `User text: ${record.raw_text ?? "none"}`,
       record.memo ? `Memo: ${record.memo}` : null
@@ -155,6 +157,8 @@ async function getRecentMealDocuments(
     metadata: {
       fallback_context: true,
       meal_type: record.meal_type,
+      emotion: record.emotion,
+      context: record.context,
       eaten_at: record.eaten_at
     },
     similarity: 1,

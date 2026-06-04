@@ -18,6 +18,24 @@ const mealTypes = [
   { value: "other", label: "Other" }
 ];
 
+const mealEmotions = [
+  { value: "happy", label: "Happy" },
+  { value: "normal", label: "Normal" },
+  { value: "stress", label: "Stress" },
+  { value: "tired", label: "Tired" },
+  { value: "sad", label: "Sad" },
+  { value: "angry", label: "Angry" }
+];
+
+const mealContexts = [
+  { value: "normal_meal", label: "Normal meal" },
+  { value: "company_dinner", label: "Company dinner" },
+  { value: "late_night", label: "Late night" },
+  { value: "delivery", label: "Delivery" },
+  { value: "home_meal", label: "Home meal" },
+  { value: "rushed", label: "Rushed" }
+];
+
 export function MealForm() {
   const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
@@ -79,6 +97,8 @@ export function MealForm() {
     const formData = new FormData(form);
     const rawText = String(formData.get("rawText") ?? "").trim();
     const mealType = String(formData.get("mealType") ?? "other");
+    const emotion = String(formData.get("emotion") ?? "normal");
+    const context = String(formData.get("context") ?? "normal_meal");
     const eatenAt = String(formData.get("eatenAt") ?? "");
 
     try {
@@ -89,6 +109,8 @@ export function MealForm() {
         },
         body: JSON.stringify({
           meal_type: mealType,
+          emotion,
+          context,
           raw_text: rawText,
           eaten_at: eatenAt ? new Date(eatenAt).toISOString() : undefined
         })
@@ -148,6 +170,30 @@ export function MealForm() {
               ))}
             </select>
             <Input name="eatenAt" type="datetime-local" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <select
+              name="emotion"
+              defaultValue="normal"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {mealEmotions.map((emotion) => (
+                <option key={emotion.value} value={emotion.value}>
+                  {emotion.label}
+                </option>
+              ))}
+            </select>
+            <select
+              name="context"
+              defaultValue="normal_meal"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {mealContexts.map((context) => (
+                <option key={context.value} value={context.value}>
+                  {context.label}
+                </option>
+              ))}
+            </select>
           </div>
           <Textarea
             name="rawText"

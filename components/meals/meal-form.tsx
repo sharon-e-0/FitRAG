@@ -10,10 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
 import type { FoodAnalysisResult } from "@/types/food-analysis";
 
-const supportedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const supportedImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif"
+]);
 const previewableImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxSelectedImageBytes = 12 * 1024 * 1024;
-const maxUploadImageBytes = 4 * 1024 * 1024;
+const maxUploadImageSizeMb = 2;
 const maxUploadImageDimension = 1600;
 
 const mealTypes = [
@@ -60,6 +66,7 @@ export function MealForm() {
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [analysis, setAnalysis] = useState<FoodAnalysisResult | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -81,7 +88,7 @@ export function MealForm() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [selectedImage]);
 
-  function onImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function onImageChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
 
     if (!file) {
@@ -95,7 +102,7 @@ export function MealForm() {
     if (!mimeType || !supportedImageTypes.has(mimeType)) {
       event.target.value = "";
       setSelectedImage(null);
-      setStatus("Use a JPEG, PNG, or WEBP image. HEIC photos need to be converted first.");
+      setStatus("Use a JPEG, PNG, WEBP, HEIC, or HEIF image.");
       return;
     }
 
@@ -106,9 +113,25 @@ export function MealForm() {
       return;
     }
 
-    setStatus(null);
+    setStatus("Preparing image...");
+    setIsProcessingImage(true);
     setAnalysis(null);
-    setSelectedImage(file);
+
+    try {
+      const normalizedImage = await normalizeMealImage(file);
+      setSelectedImage(normalizedImage);
+      setStatus(
+        normalizedImage.name !== file.name || normalizedImage.size < file.size
+          ? "Image converted and compressed for analysis."
+          : null
+      );
+    } catch (error) {
+      event.target.value = "";
+      setSelectedImage(null);
+      setStatus(error instanceof Error ? error.message : "Failed to prepare image.");
+    } finally {
+      setIsProcessingImage(false);
+    }
   }
 
   function clearSelectedImage() {
@@ -199,20 +222,25 @@ export function MealForm() {
     try {
       rawText = rawText || analysis.food_name;
 
+      const saveFormData = new FormData();
+      saveFormData.set("input_type", selectedImage ? "image_text" : "text");
+      saveFormData.set("meal_type", mealType);
+      saveFormData.set("emotion", emotion);
+      saveFormData.set("context", context);
+      saveFormData.set("raw_text", rawText);
+      saveFormData.set("analysis", JSON.stringify(analysis));
+
+      if (eatenAt) {
+        saveFormData.set("eaten_at", new Date(eatenAt).toISOString());
+      }
+
+      if (selectedImage) {
+        saveFormData.set("image", selectedImage);
+      }
+
       const response = await fetchWithSupabaseAuth("/api/meals", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          input_type: selectedImage ? "image_text" : "text",
-          meal_type: mealType,
-          emotion,
-          context,
-          raw_text: rawText,
-          eaten_at: eatenAt ? new Date(eatenAt).toISOString() : undefined,
-          analysis
-        })
+        body: saveFormData
       });
 
       const payload = await response.json();
@@ -314,7 +342,7 @@ export function MealForm() {
                 ref={imageInputRef}
                 name="image"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
                 className="sm:max-w-xs"
                 onChange={onImageChange}
               />
@@ -346,12 +374,15 @@ export function MealForm() {
             <Button
               type="button"
               variant="outline"
-              disabled={isAnalyzing || isSubmitting}
+              disabled={isAnalyzing || isSubmitting || isProcessingImage}
               onClick={onAnalyze}
             >
-              {isAnalyzing ? "Analyzing..." : "AI 분석 및 확인"}
+              {getAnalyzeButtonLabel(isProcessingImage, isAnalyzing)}
             </Button>
-            <Button type="submit" disabled={isSubmitting || isAnalyzing || !analysis}>
+            <Button
+              type="submit"
+              disabled={isSubmitting || isAnalyzing || isProcessingImage || !analysis}
+            >
               {isSubmitting ? "Saving..." : "최종 저장"}
             </Button>
           </div>
@@ -455,64 +486,56 @@ async function analyzeWithImage(foodName: string, image: File) {
 }
 
 async function prepareImageForAnalysis(image: File, mimeType: string) {
-  if (!previewableImageTypes.has(mimeType) || image.size <= maxUploadImageBytes) {
-    return mimeType ? new File([image], image.name, { type: mimeType }) : image;
-  }
-
-  try {
-    return await resizeImageFile(image);
-  } catch {
-    return new File([image], image.name, { type: mimeType });
-  }
+  return normalizeMealImage(mimeType ? new File([image], image.name, { type: mimeType }) : image);
 }
 
-function resizeImageFile(image: File) {
-  return new Promise<File>((resolve, reject) => {
-    const imageUrl = URL.createObjectURL(image);
-    const img = document.createElement("img");
+async function normalizeMealImage(image: File) {
+  const mimeType = getImageMimeType(image);
 
-    img.onload = () => {
-      URL.revokeObjectURL(imageUrl);
-      const scale = Math.min(
-        1,
-        maxUploadImageDimension / Math.max(img.naturalWidth, img.naturalHeight)
-      );
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-      const context = canvas.getContext("2d");
+  if (!mimeType || !supportedImageTypes.has(mimeType)) {
+    throw new Error("Use a JPEG, PNG, WEBP, HEIC, or HEIF image.");
+  }
 
-      if (!context) {
-        reject(new Error("Could not resize image."));
-        return;
-      }
-
-      context.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("Could not compress image."));
-            return;
-          }
-
-          resolve(
-            new File([blob], image.name.replace(/\.[^.]+$/, ".jpg"), {
-              type: "image/jpeg"
-            })
-          );
-        },
-        "image/jpeg",
-        0.82
-      );
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(imageUrl);
-      reject(new Error("Could not load image."));
-    };
-
-    img.src = imageUrl;
+  const jpegImage = isHeicImage(image)
+    ? await convertHeicToJpeg(image)
+    : new File([image], image.name, { type: mimeType });
+  const imageCompression = (await import("browser-image-compression")).default;
+  const compressed = await imageCompression(jpegImage, {
+    maxSizeMB: maxUploadImageSizeMb,
+    maxWidthOrHeight: maxUploadImageDimension,
+    useWebWorker: true,
+    fileType: "image/jpeg",
+    initialQuality: 0.82
   });
+
+  return new File([compressed], toJpegFileName(jpegImage.name), {
+    type: "image/jpeg"
+  });
+}
+
+async function convertHeicToJpeg(image: File) {
+  const heic2any = (await import("heic2any")).default;
+  const converted = await heic2any({
+    blob: image,
+    toType: "image/jpeg",
+    quality: 0.86
+  });
+  const blob = Array.isArray(converted) ? converted[0] : converted;
+
+  return new File([blob], toJpegFileName(image.name), {
+    type: "image/jpeg"
+  });
+}
+
+function isHeicImage(file: File) {
+  const mimeType = getImageMimeType(file);
+  return mimeType === "image/heic" || mimeType === "image/heif";
+}
+
+function toJpegFileName(fileName: string) {
+  return fileName.includes(".")
+    ? fileName.replace(/\.[^.]+$/, ".jpg")
+    : `${fileName}.jpg`;
 }
 
 function getImageMimeType(file: File) {
@@ -543,4 +566,16 @@ function getImageMimeType(file: File) {
   }
 
   return "";
+}
+
+function getAnalyzeButtonLabel(isProcessingImage: boolean, isAnalyzing: boolean) {
+  if (isProcessingImage) {
+    return "Preparing image...";
+  }
+
+  if (isAnalyzing) {
+    return "Analyzing...";
+  }
+
+  return "AI 분석 및 확인";
 }

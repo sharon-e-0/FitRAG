@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -42,6 +43,7 @@ type DashboardMeal = {
   type: string;
   name: string;
   calories: number | null;
+  imageUrl: string | null;
   time: string;
   tags: string[];
 };
@@ -71,6 +73,7 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Breakfast",
     name: "Greek yogurt, berries, oats",
     calories: 420,
+    imageUrl: null,
     time: "08:10",
     tags: ["calm", "home"]
   },
@@ -79,6 +82,7 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Lunch",
     name: "Chicken bibimbap",
     calories: 680,
+    imageUrl: null,
     time: "12:35",
     tags: ["focused", "campus"]
   },
@@ -87,6 +91,7 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Snack",
     name: "Iced latte, protein bar",
     calories: 310,
+    imageUrl: null,
     time: "16:20",
     tags: ["tired", "study"]
   },
@@ -95,6 +100,7 @@ const fallbackMeals: DashboardMeal[] = [
     type: "Dinner",
     name: "Salmon, rice, salad",
     calories: 540,
+    imageUrl: null,
     time: "19:05",
     tags: ["relaxed", "home"]
   }
@@ -401,9 +407,24 @@ export function DashboardClient() {
             {todayMeals.map((meal) => (
               <div
                 key={meal.id}
-                className="grid gap-3 rounded-md border p-3 sm:grid-cols-[88px_1fr_auto] sm:items-center"
+                className="grid gap-3 rounded-md border p-3 sm:grid-cols-[88px_64px_1fr_auto] sm:items-center"
               >
                 <div className="text-sm font-medium">{meal.time}</div>
+                <div className="relative h-16 w-16 overflow-hidden rounded-md border bg-muted">
+                  {meal.imageUrl ? (
+                    <Image
+                      src={meal.imageUrl}
+                      alt={meal.name}
+                      fill
+                      sizes="64px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                      No img
+                    </div>
+                  )}
+                </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{meal.name}</span>
@@ -671,6 +692,7 @@ function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
     type: formatMealType(record.meal_type),
     name: foodNames || record.raw_text || record.memo || "Saved meal",
     calories: calories > 0 ? Math.round(calories) : null,
+    imageUrl: record.image_url,
     time,
     tags: [
       record.input_type,

@@ -7,7 +7,7 @@ export default function NewMealPage() {
       <div className="mx-auto max-w-2xl">
         <h1 className="text-3xl font-semibold">New meal</h1>
         <p className="mt-2 text-muted-foreground">
-          Save a text meal log now; image analysis can attach to the same record later.
+          Upload a meal image or write a meal log, then analyze and save it.
         </p>
         <div className="mt-6">
           <MealForm />

@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { getAuthenticatedUser } from "@/lib/supabase/auth-user";
 import { createClient } from "@/lib/supabase/server";
 import { createMealSchema } from "@/lib/validation/meals";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-      error: authError
-    } = await supabase.auth.getUser();
+    const { user, error: authError } = await getAuthenticatedUser(supabase, request);
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,10 +36,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-      error: authError
-    } = await supabase.auth.getUser();
+    const { user, error: authError } = await getAuthenticatedUser(supabase, request);
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
 
 const mealTypes = [
   { value: "breakfast", label: "Breakfast" },
@@ -32,7 +33,7 @@ export function MealForm() {
     const eatenAt = String(formData.get("eatenAt") ?? "");
 
     try {
-      const response = await fetch("/api/meals", {
+      const response = await fetchWithSupabaseAuth("/api/meals", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

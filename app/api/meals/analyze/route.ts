@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { analyzeFood } from "@/lib/ai/food-analysis";
+import { getAuthenticatedUser } from "@/lib/supabase/auth-user";
 import { createClient } from "@/lib/supabase/server";
 import { foodAnalysisJsonSchema } from "@/lib/validation/food-analysis";
 import type { FoodAnalysisRequest } from "@/types/food-analysis";
@@ -13,10 +14,7 @@ const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-      error: authError
-    } = await supabase.auth.getUser();
+    const { user, error: authError } = await getAuthenticatedUser(supabase, request);
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

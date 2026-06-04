@@ -32,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
 import { cn } from "@/lib/utils";
 import type { FoodRecord } from "@/types/database";
 
@@ -172,7 +173,7 @@ export function DashboardClient() {
 
     async function loadMeals() {
       try {
-        const response = await fetch("/api/meals", {
+        const response = await fetchWithSupabaseAuth("/api/meals", {
           cache: "no-store"
         });
 

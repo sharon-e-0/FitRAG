@@ -1,10 +1,10 @@
 # FitRAG TRD
 
-## 1. 기술 개요
+## 1. Technical Overview
 
-FitRAG는 Next.js 14 App Router 기반 풀스택 애플리케이션이다. 프론트엔드, Route Handler 백엔드, Supabase PostgreSQL, pgvector, Gemini API를 사용한다.
+FitRAG는 Next.js 14 App Router 기반 풀스택 웹 애플리케이션이다. 프론트엔드는 React, TypeScript, TailwindCSS, shadcn 스타일 컴포넌트, Recharts를 사용하며, 백엔드는 Next.js Route Handler로 구성되어 있다. 데이터 저장은 Supabase PostgreSQL/Storage/Auth를 사용하고, RAG 검색은 pgvector와 Gemini text-embedding-004를 사용한다.
 
-## 2. 기술 스택
+## 2. Tech Stack
 
 ### Frontend
 
@@ -15,11 +15,14 @@ FitRAG는 Next.js 14 App Router 기반 풀스택 애플리케이션이다. 프�
 - shadcn 스타일 UI 컴포넌트
 - Recharts
 - lucide-react
+- browser-image-compression
+- heic2any
 
 ### Backend
 
 - Next.js Route Handlers
 - Supabase SSR/Auth
+- Supabase Storage
 - Zod validation
 
 ### Database
@@ -35,7 +38,7 @@ FitRAG는 Next.js 14 App Router 기반 풀스택 애플리케이션이다. 프�
 - Rule/fallback 기반 음식 영양 추정
 - Rule 기반 체중 예측 엔진
 
-## 3. 주요 폴더 구조
+## 3. Folder Structure
 
 ```txt
 app/
@@ -44,16 +47,20 @@ app/
     health/
     meals/
     meals/analyze/
+    profile/
     rag/coach/
     rag/food-records/embed/
+    rag/food-records/re-embed/
     rag/search/
     rag/status/
+    weight-logs/
   auth/callback/
   coach/
   dashboard/
   login/
   meals/new/
   prediction/
+  profile/
 
 components/
   auth/
@@ -76,89 +83,89 @@ types/
 docs/
 ```
 
-## 4. 인증 구조
+## 4. Authentication Architecture
 
-### 관련 파일
+### Files
 
 - `app/login/page.tsx`
 - `components/auth/login-button.tsx`
 - `components/auth/logout-button.tsx`
 - `app/auth/callback/route.ts`
 - `app/api/auth/logout/route.ts`
+- `app/page.tsx`
 - `lib/supabase/client.ts`
 - `lib/supabase/server.ts`
 - `lib/supabase/middleware.ts`
 - `middleware.ts`
 
-### 동작
+### Flow
 
-1. 클라이언트에서 Supabase OAuth 로그인 요청을 보낸다.
-2. Google OAuth 성공 후 `/auth/callback`으로 돌아온다.
-3. callback route가 Supabase 세션 쿠키를 설정한다.
-4. middleware는 보호 경로 접근 시 세션을 검사한다.
-5. API Route Handler는 `getAuthenticatedUser`로 사용자 인증을 재검증한다.
+```txt
+LoginButton
+  -> supabase.auth.signInWithOAuth("google")
+  -> Google OAuth
+  -> /auth/callback?code=...
+  -> exchangeCodeForSession()
+  -> Supabase session cookie set
+  -> redirect to next path
+```
 
-### 보호 경로
+`app/page.tsx`는 OAuth provider가 실수로 `/?code=...`로 redirect하는 경우를 보완하기 위해 code를 `/auth/callback`으로 전달한다.
+
+Middleware는 보호 경로 접근 시 Supabase server client의 `getUser()`로 실제 세션을 확인한다.
+
+### Protected Paths
 
 - `/dashboard`
 - `/meals`
 - `/coach`
 - `/prediction`
+- `/profile`
 
-## 5. 식사 저장 구조
+## 5. Meal Analysis And Save Architecture
 
-### 관련 파일
+### Files
 
 - `components/meals/meal-form.tsx`
-- `app/api/meals/route.ts`
 - `app/api/meals/analyze/route.ts`
-- `lib/validation/meals.ts`
+- `app/api/meals/route.ts`
+- `lib/ai/food-analysis.ts`
+- `lib/ai/food-analysis-fallback.ts`
 - `lib/validation/food-analysis.ts`
-- `types/database.ts`
+- `lib/validation/meals.ts`
 - `types/food-analysis.ts`
+- `types/database.ts`
 
-### 저장 흐름
+### Flow
 
 ```txt
 MealForm
-  -> runMealAnalysis()
-    -> /api/meals/analyze
-      -> Gemini analyzeFood()
-      -> 실패 시 estimateFoodAnalysisFallback()
-  -> /api/meals
-    -> food_records insert
-    -> food_analysis_results insert
-  -> /api/rag/food-records/embed fire-and-forget
-  -> /dashboard 이동
+  -> user enters meal text and/or image
+  -> client normalizes image
+  -> AI 분석 및 확인
+  -> POST /api/meals/analyze
+    -> Gemini 2.5 Flash
+    -> fallback estimate if Gemini fails
+  -> editable analysis result rendered in form
+  -> 최종 저장
+  -> POST /api/meals
+    -> upload image to Supabase Storage meal_images
+    -> insert food_records
+    -> insert food_analysis_results
+    -> fire-and-forget POST /api/rag/food-records/embed
 ```
 
-### 지원 이미지 형식
+### Image Handling
 
-- JPEG
-- PNG
-- WEBP
+- JPEG/PNG/WEBP는 그대로 사용하거나 크기가 크면 압축한다.
+- HEIC/HEIF는 클라이언트에서 `heic2any`를 사용해 JPEG로 변환한다.
+- 큰 이미지는 `browser-image-compression`으로 압축한다.
+- 서버 저장 시 `meal_images/{user_id}/{food_record_id}-{timestamp}.{ext}` 형태로 업로드한다.
+- Supabase Storage public URL을 `food_records.image_url`에 저장한다.
 
-### 클라이언트 이미지 처리
+## 6. Food Analysis
 
-- 최대 선택 크기: 12MB
-- JPEG/PNG/WEBP가 4MB 초과 시 1600px 기준으로 JPEG 압축
-- HEIC/HEIF는 미지원
-
-## 6. 음식 분석 구조
-
-### Gemini 분석
-
-관련 파일:
-
-- `lib/ai/food-analysis.ts`
-- `app/api/meals/analyze/route.ts`
-
-입력:
-
-- 텍스트 음식명
-- 이미지 base64 + MIME type
-
-출력:
+### Gemini Result
 
 ```json
 {
@@ -173,13 +180,9 @@ MealForm
 }
 ```
 
-### fallback 분석
+### Fallback Result
 
-관련 파일:
-
-- `lib/ai/food-analysis-fallback.ts`
-
-Gemini 실패 시 API는 500으로 막지 않고 추정 결과를 반환한다.
+Gemini 호출 실패, timeout, rate limit, invalid content 등의 상황에서는 fallback 추정치를 반환한다.
 
 ```json
 {
@@ -195,11 +198,46 @@ Gemini 실패 시 API는 500으로 막지 않고 추정 결과를 반환한다.
 }
 ```
 
-## 7. RAG 구조
+Fallback 결과는 UI에서 경고 배지로 표시되며, 사용자가 최종 저장 전에 수치를 수정할 수 있다.
 
-### 관련 파일
+## 7. Database And Storage
+
+### Core Tables
+
+- `user_profiles`
+- `food_records`
+- `food_analysis_results`
+- `emotion_tags`
+- `context_tags`
+- `health_connect_daily_summaries`
+- `weight_logs`
+- `weight_predictions`
+- `rag_documents`
+- `embedding_failure_logs`
+- `chat_sessions`
+- `chat_messages`
+
+### Important Columns
+
+- `food_records.emotion`
+- `food_records.context`
+- `food_records.image_url`
+- `food_analysis_results.analysis_source`
+- `rag_documents.embedding vector(768)`
+- `embedding_failure_logs.failure_reason`
+
+### Storage
+
+- Bucket: `meal_images`
+- Purpose: 식사 이미지 원본 또는 변환/압축 이미지 보관
+- DB reference: `food_records.image_url`
+
+## 8. RAG Architecture
+
+### Files
 
 - `app/api/rag/food-records/embed/route.ts`
+- `app/api/rag/food-records/re-embed/route.ts`
 - `app/api/rag/search/route.ts`
 - `app/api/rag/coach/route.ts`
 - `app/api/rag/status/route.ts`
@@ -209,21 +247,21 @@ Gemini 실패 시 API는 500으로 막지 않고 추정 결과를 반환한다.
 - `lib/services/rag-search-service.ts`
 - `lib/services/retrieval-service.ts`
 - `lib/services/health-coach-chat-service.ts`
-- `lib/rag/health-coach-prompt.ts`
 - `lib/services/embedding-failure-log-service.ts`
+- `lib/rag/health-coach-prompt.ts`
 
-### food_records 임베딩 흐름
+### Embedding Flow
 
 ```txt
-식사 저장 성공
-  -> /api/rag/food-records/embed 호출
-  -> food_records + food_analysis_results 조회
-  -> 자연어 content 생성
-  -> text-embedding-004 호출
-  -> rag_documents upsert
+food_record_id
+  -> fetch food_records + food_analysis_results
+  -> exclude analysis_source = fallback
+  -> build strict natural language content
+  -> Gemini text-embedding-004
+  -> upsert rag_documents
 ```
 
-### rag_documents.content 예시
+### Content Format
 
 ```txt
 2026-06-04 저녁 식사.
@@ -235,152 +273,130 @@ Gemini 실패 시 API는 500으로 막지 않고 추정 결과를 반환한다.
 사용자 메모: 야근 후 허기가 심했음.
 ```
 
-### 검색 흐름
+### Re-embedding
 
-```txt
-사용자 질문
-  -> 질문 임베딩 생성
-  -> match_rag_documents RPC
-  -> Top K 문서 반환
-  -> Gemini 코치 프롬프트 구성
-  -> 답변 생성
+`POST /api/rag/food-records/re-embed`는 `food_record_ids` 배열을 받아 기존 `rag_documents`를 삭제한 뒤 동일 포맷으로 다시 content와 embedding을 생성한다.
+
+### RAG Status
+
+`GET /api/rag/status` 반환값:
+
+```json
+{
+  "total_documents": 100,
+  "embedded_documents": 92,
+  "missing_embeddings": 8,
+  "embedding_rate": 92,
+  "recent_50": {
+    "embedded_documents": 47,
+    "missing_embeddings": 3
+  }
+}
 ```
 
-### fallback
+## 9. Coach Architecture
 
-- pgvector 검색 실패 또는 결과 없음: 최근 food_records를 컨텍스트로 사용
-- Gemini 코치 답변 실패: rule 기반 fallback 답변 생성
+### Flow
 
-## 8. Dashboard 구조
+```txt
+Question
+  -> create query embedding
+  -> pgvector match_rag_documents RPC
+  -> Top K context
+  -> Gemini health coach prompt
+  -> structured Korean markdown answer
+  -> chat_sessions/chat_messages save
+```
 
-### 관련 파일
+### Fallback
+
+- pgvector 검색 실패 또는 결과 없음: 최근 food_records 기반 fallback context 사용
+- Gemini 답변 실패: rule-based fallback answer 사용
+
+Frontend는 답변을 섹션/불릿 형태로 렌더링해 긴 텍스트를 읽기 쉽게 표시한다.
+
+## 10. Dashboard Architecture
+
+### Files
 
 - `app/dashboard/page.tsx`
 - `app/dashboard/dashboard-client.tsx`
 
-### 데이터 소스
+### Data Sources
 
 - `/api/meals`
 - `/api/rag/status`
-- 정적 샘플 차트 데이터
 
-### 구현 내용
+### Data Mapping
 
-- 저장된 식사 목록 표시
-- `food_analysis_results.calories` 합산 표시
-- 분석 결과가 없으면 `Pending analysis`
-- RAG 임베딩 상태 카드 표시
-- 최근 임베딩 실패 로그 표시
-- 칼로리/영양소/체중/감정 차트 표시
+- 최근 7일 `food_analysis_results.calories`를 Recharts BarChart 데이터로 변환한다.
+- 탄수화물/단백질/지방 합계를 Pie 또는 Bar 데이터로 변환한다.
+- `image_url`이 있으면 Next.js `Image`로 썸네일을 렌더링한다.
+- RAG 상태 카드의 새로고침 버튼이 `/api/rag/status`를 다시 호출한다.
 
-## 9. 체중 예측 구조
+## 11. Profile And Weight Prediction
 
-### 관련 파일
+### Files
 
+- `app/profile/page.tsx`
+- `app/prediction/page.tsx`
+- `components/prediction/prediction-client.tsx`
+- `app/api/profile/route.ts`
+- `app/api/weight-logs/route.ts`
 - `lib/prediction/weight.ts`
 - `lib/prediction/weight.test.ts`
-- `components/prediction/prediction-client.tsx`
-- `app/prediction/page.tsx`
+- `lib/validation/user-profile.ts`
+- `lib/validation/weight-logs.ts`
 
-### 계산 항목
+### Calculation
 
 - BMR
 - TDEE
-- 일일 에너지 수지
-- 일일 체중 변화량
-- 7일 예측
-- 30일 예측
-- 목표 체중 도달 예상일
+- Daily energy balance
+- Daily weight delta
+- 7-day forecast
+- 30-day forecast
+- Target weight ETA
 
-### 테스트
+### Persistence
 
-Vitest 기반 unit test가 작성되어 있다.
+- `user_profiles`: height, age, gender, target weight
+- `weight_logs`: current weight over time
 
-```txt
-Test Files: 1 passed
-Tests: 6 passed
+## 12. API Summary
+
+| API | Method | Purpose |
+| --- | --- | --- |
+| `/api/health` | GET | service health check |
+| `/api/meals` | GET | list user meal records |
+| `/api/meals` | POST | save confirmed meal and analysis |
+| `/api/meals/analyze` | POST | analyze meal before saving |
+| `/api/profile` | GET/POST | load and save user profile |
+| `/api/weight-logs` | GET/POST | load and save weight logs |
+| `/api/rag/food-records/embed` | POST | embed food records |
+| `/api/rag/food-records/re-embed` | POST | delete and recreate embeddings |
+| `/api/rag/search` | POST | pgvector similarity search |
+| `/api/rag/coach` | POST | RAG health coach answer |
+| `/api/rag/status` | GET | embedding status diagnostics |
+| `/api/auth/logout` | POST | logout |
+
+## 13. Testing
+
+Unit tests are implemented for the weight prediction engine.
+
+```bash
+npm test -- --run
 ```
 
-## 10. API 목록
-
-### Auth
-
-- `POST /api/auth/logout`
-- `GET /auth/callback`
-
-### Health
-
-- `GET /api/health`
-
-### Meals
-
-- `GET /api/meals`
-- `POST /api/meals`
-- `POST /api/meals/analyze`
-
-### RAG
-
-- `POST /api/rag/food-records/embed`
-- `POST /api/rag/search`
-- `POST /api/rag/coach`
-- `GET /api/rag/status`
-
-## 11. DB 주요 테이블
-
-마이그레이션 파일:
-
-- `migration.sql`
-- `migration_embedding_diagnostics.sql`
-- `migration_food_record_emotion_context.sql`
-
-주요 테이블:
-
-- `user_profiles`
-- `food_records`
-- `food_analysis_results`
-- `emotion_tags`
-- `situation_tags`
-- `food_record_emotion_tags`
-- `food_record_situation_tags`
-- `health_connect_daily_logs`
-- `weight_logs`
-- `weight_prediction_results`
-- `rag_documents`
-- `chat_sessions`
-- `chat_messages`
-- `embedding_failure_logs`
-
-## 12. RLS 정책
-
-각 주요 사용자 데이터 테이블은 Supabase Auth 사용자 ID 기준 owner policy를 갖는다.
-
-기본 원칙:
-
-- 사용자는 자신의 row만 조회 가능
-- 사용자는 자신의 row만 생성 가능
-- 사용자는 자신의 row만 수정/삭제 가능
-- 서버 Route Handler에서도 인증 사용자 ID로 필터링
-
-## 13. 환경 변수
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-GOOGLE_GENERATIVE_AI_API_KEY=
-```
-
-## 14. 현재 기술적 제한사항
-
-- Vercel 서버 로그는 로컬 CLI 인증이 없어 현재 직접 조회 불가
-- 이미지 원본은 Storage에 저장하지 않음
-- Health Connect 실제 모바일 SDK 동기화 미구현
-- 일부 Dashboard 차트는 샘플 데이터
-- `/api/rag/food-records/embed` 호출은 fire-and-forget 구조
-- Gemini 실패 시 fallback 저장은 가능하지만 정확도는 낮음
-
-## 15. 검증 명령
+Build verification:
 
 ```bash
 npm run build
-npm test -- --run
 ```
+
+## 14. Deployment Notes
+
+- GitHub repository: `sharon-e-0/FitRAG`
+- Production URL: `https://fit-rag.vercel.app`
+- Required Vercel environment variables include Supabase URL, Supabase anon key, Gemini API key, and app URL.
+- Supabase redirect URL must include `https://fit-rag.vercel.app/auth/callback`.

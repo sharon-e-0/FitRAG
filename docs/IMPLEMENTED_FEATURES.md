@@ -1,22 +1,22 @@
 # FitRAG Implemented Features
 
-## 1. 현재 구현 완료 기능 요약
+## 1. Summary
 
-FitRAG 프로젝트에서 현재 코드와 배포 기준으로 구현된 기능은 다음과 같다.
+FitRAG는 현재 Google OAuth 로그인, 식사 이미지/텍스트 분석, 사용자 확인 후 저장, Supabase Storage 이미지 저장, RAG 건강 코치, RAG 상태 진단, 프로필/체중 기록, 체중 예측, Dashboard 시각화를 제공한다.
 
-## 2. 인증
+## 2. Authentication
 
-### 구현 완료
+### Implemented
 
 - Supabase Auth 기반 Google OAuth 로그인
 - OAuth callback 처리
+- `/`로 들어온 OAuth code 보정 처리
 - 세션 쿠키 유지
-- 로그아웃 API
-- 로그아웃 버튼
-- middleware 기반 보호 라우트
+- Supabase `getUser()` 기반 middleware 보호
+- 로그아웃 API와 버튼
 - API Route Handler 인증 검증
 
-### 관련 경로
+### Routes
 
 - `/login`
 - `/auth/callback`
@@ -25,10 +25,11 @@ FitRAG 프로젝트에서 현재 코드와 배포 기준으로 구현된 기능�
 - `/meals/new`
 - `/coach`
 - `/prediction`
+- `/profile`
 
-## 3. 식사 등록
+## 3. Meal Registration
 
-### 구현 완료
+### Implemented
 
 - 식사 유형 선택
 - 식사 시간 입력
@@ -36,54 +37,56 @@ FitRAG 프로젝트에서 현재 코드와 배포 기준으로 구현된 기능�
 - 상황 선택
 - 텍스트 식사 기록 입력
 - 이미지 업로드
-- 저장 시 자동 영양 분석
-- 분석 결과 DB 저장
+- HEIC/HEIF 클라이언트 변환
+- 이미지 압축
+- AI 분석 및 확인 단계
+- 분석 결과 Input 필드 수정
+- fallback 결과 경고 배지 표시
+- 최종 저장 단계에서만 DB insert
 - 저장 후 Dashboard 이동
-- RAG 임베딩 API fire-and-forget 호출
 
-### 지원 이미지
+### Supported Image Inputs
 
 - JPEG
 - PNG
 - WEBP
-
-### 미지원 이미지
-
 - HEIC
 - HEIF
 
-## 4. 음식 분석
+## 4. Food Analysis
 
-### Gemini 분석
+### Gemini Analysis
 
-Gemini 2.5 Flash를 사용하여 음식명/이미지 기반 영양소를 계산한다.
+Gemini 2.5 Flash를 사용하여 텍스트 또는 이미지 기반 영양소를 분석한다.
 
-출력 항목:
+Output:
 
+- food_name
 - calories
 - carbs
 - protein
 - fat
 - sugar
 - sodium
-- food_name
+- analysis_source
 
-### fallback 분석
+### Fallback Analysis
 
-Gemini가 실패해도 사용자가 저장을 못 하는 일이 없도록 fallback 추정값을 반환한다.
+Gemini 분석 실패 시 fallback 추정값을 반환한다.
 
-fallback 특징:
+Fallback 특징:
 
-- 키워드 기반 음식 추정
-- 이미지 단독인 경우 일반 식사 추정값 사용
-- 결과에 `analysis_source: fallback` 표시
-- UI에 `estimated` 배지 표시
+- 저장 흐름이 막히지 않음
+- `analysis_source: fallback`
+- UI 경고 배지 표시
+- 사용자 수동 수정 가능
+- RAG 임베딩 대상에서는 제외
 
-## 5. 데이터 저장
+## 5. Data Storage
 
 ### food_records
 
-저장 항목:
+Stored fields include:
 
 - user_id
 - input_type
@@ -97,7 +100,7 @@ fallback 특징:
 
 ### food_analysis_results
 
-저장 항목:
+Stored fields include:
 
 - food_record_id
 - user_id
@@ -109,43 +112,50 @@ fallback 특징:
 - sugar_g
 - sodium_mg
 - confidence_score
+- analysis_source
 - raw_ai_response
+
+### Supabase Storage
+
+- Bucket: `meal_images`
+- Uploaded meal image public URL is saved to `food_records.image_url`.
 
 ## 6. Dashboard
 
-### 구현 완료
+### Implemented
 
 - 저장된 식사 목록 조회
+- 식사 이미지 썸네일 표시
 - 분석된 칼로리 표시
 - 분석 전 식사는 `Pending analysis` 표시
+- 최근 7일 실제 식사 기록 기반 칼로리 차트
+- 실제 식사 분석 결과 기반 영양소 차트
 - RAG 임베딩 상태 카드
+- RAG 상태 새로고침 버튼
 - 최근 임베딩 실패 로그 표시
-- 칼로리 요약 차트
-- 영양소 차트
 - 체중 예측 그래프
 - 감정 분석 리포트
 - AI 코치 채팅 UI
+- 파스텔/비비드 헬스케어 테마
 
-### 주의
+## 7. RAG Pipeline
 
-일부 차트는 아직 샘플 데이터 기반이다.
-
-## 7. RAG
-
-### 구현 완료
+### Implemented
 
 - 식사 기록 기반 RAG 문서 생성
 - 자연어 content 생성
-- text-embedding-004 임베딩 생성
+- Gemini text-embedding-004 임베딩 생성
 - Supabase pgvector 저장
 - similarity search API
 - RAG 코치 API
-- 검색 실패 시 최근 식사 기록 fallback
+- fallback 분석 결과 임베딩 제외
+- food_record_id 배열 기반 재임베딩 API
+- 검색 실패 시 최근 식사 기록 fallback context
 - Gemini 답변 실패 시 rule-based fallback
 - RAG 상태 점검 API
-- 임베딩 실패 로그 저장 구조
+- 임베딩 실패 로그 저장
 
-### rag_documents.content 포함 정보
+### rag_documents.content Includes
 
 - 날짜
 - 식사 유형
@@ -158,23 +168,30 @@ fallback 특징:
 - 상황
 - 메모
 
-## 8. AI 코치
+## 8. AI Coach
 
-### 구현 완료
+### Implemented
 
 - 사용자 질문 입력
 - 질문 임베딩 생성
-- pgvector 검색
-- Top K 문서 추출
+- pgvector Top K 검색
 - Gemini 프롬프트 구성
-- 답변 생성
+- 구조화된 한국어 답변 생성
+- 답변 UI 가독성 개선
 - 채팅 세션 저장
 - 채팅 메시지 저장
 
-## 9. 체중 예측
+## 9. Profile And Weight Prediction
 
-### 구현 완료
+### Implemented
 
+- 키 입력
+- 나이 입력
+- 성별 선택
+- 현재 체중 입력
+- 목표 체중 입력
+- `user_profiles` 저장
+- `weight_logs` 저장
 - BMR 계산
 - TDEE 계산
 - 에너지 수지 계산
@@ -184,76 +201,73 @@ fallback 특징:
 - 목표 체중 도달일 계산
 - Unit Test 작성
 
-## 10. API 구현 현황
+## 10. API Status
 
-| API | Method | 상태 | 설명 |
+| API | Method | Status | Description |
 | --- | --- | --- | --- |
-| `/api/health` | GET | 완료 | 서비스 상태 확인 |
-| `/api/meals` | GET | 완료 | 식사 기록 조회 |
-| `/api/meals` | POST | 완료 | 식사 및 분석 결과 저장 |
-| `/api/meals/analyze` | POST | 완료 | 음식 분석 및 fallback |
-| `/api/rag/food-records/embed` | POST | 완료 | 식사 기록 임베딩 |
-| `/api/rag/search` | POST | 완료 | pgvector 검색 |
-| `/api/rag/coach` | POST | 완료 | RAG 코치 답변 |
-| `/api/rag/status` | GET | 완료 | RAG 상태 진단 |
-| `/api/auth/logout` | POST | 완료 | 로그아웃 |
+| `/api/health` | GET | Done | 서비스 상태 확인 |
+| `/api/meals` | GET | Done | 식사 기록 조회 |
+| `/api/meals` | POST | Done | 확인된 식사 및 분석 결과 저장 |
+| `/api/meals/analyze` | POST | Done | 저장 전 음식 분석 및 fallback |
+| `/api/profile` | GET/POST | Done | 프로필 조회/저장 |
+| `/api/weight-logs` | GET/POST | Done | 체중 기록 조회/저장 |
+| `/api/rag/food-records/embed` | POST | Done | 식사 기록 임베딩 |
+| `/api/rag/food-records/re-embed` | POST | Done | 식사 기록 재임베딩 |
+| `/api/rag/search` | POST | Done | pgvector 검색 |
+| `/api/rag/coach` | POST | Done | RAG 코치 답변 |
+| `/api/rag/status` | GET | Done | RAG 상태 진단 |
+| `/api/auth/logout` | POST | Done | 로그아웃 |
 
-## 11. 검증된 항목
+## 11. Verified
 
-### 빌드
+### Build
 
 ```bash
 npm run build
 ```
 
-통과.
+Passed.
 
-### 테스트
+### Unit Test
 
 ```bash
 npm test -- --run
 ```
 
-결과:
+Result:
 
 ```txt
 Test Files: 1 passed
 Tests: 6 passed
 ```
 
-### 배포
+### Deployment
 
-GitHub main branch push 후 Vercel deployment success 확인.
+GitHub `main` branch push 후 Vercel 자동 배포 구조로 운영한다.
 
-## 12. 아직 미구현 또는 개선 필요
+## 12. Remaining Work
 
-- Supabase Storage 이미지 원본 저장
-- food_records.image_url 실제 저장
-- Health Connect SDK 실제 연동
-- Dashboard 차트의 실데이터 전환
-- 기존 food_records 전체 재임베딩 API
-- Gemini 실패 원인에 대한 서버 로그 대시보드
-- 이미지 다중 음식 분리 분석
-- 음식 분석 결과 수동 수정 UI
-- 체중 기록 저장/조회 UI
+- Health Connect SDK 실기기 동기화
+- 다중 음식 개별 분리 분석
 - 관리자 전용 권한 체계
+- 더 정교한 영양 DB 기반 fallback
+- 비공개 Storage URL 또는 signed URL 전환
+- Google OAuth 앱 Production 전환 및 검증 상태 정리
 
-## 13. 현재 사용자 테스트 시 기대 동작
+## 13. Expected User Test Behavior
 
-### 텍스트 저장
+### Text Meal
 
 ```txt
 비빔밥, 콜라, 계란후라이
 ```
 
-저장 시 자동 분석 후 칼로리와 영양소가 저장된다.
+`AI 분석 및 확인` 후 영양소가 표시되고, 사용자가 수치를 수정한 뒤 `최종 저장`하면 DB에 저장된다.
 
-### 이미지 저장
+### Image Meal
 
-JPEG/PNG/WEBP 이미지를 업로드하고 저장하면 Gemini 분석을 먼저 시도한다.
+JPEG/PNG/WEBP/HEIC 이미지를 업로드하면 클라이언트 변환/압축 후 분석된다. 저장 시 Supabase Storage에 이미지가 저장되고 Dashboard에 썸네일이 표시된다.
 
-Gemini 실패 시에도 fallback 추정값으로 저장된다.
+### RAG Coach
 
-### Dashboard
-
-저장된 식사와 분석 칼로리가 표시된다.
+Gemini 분석으로 저장된 식사 기록은 RAG 문서로 임베딩되어 코치 답변의 근거로 사용된다. fallback 분석 기록은 RAG 오염 방지를 위해 임베딩하지 않는다.

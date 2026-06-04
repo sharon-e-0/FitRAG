@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowUpRight,
   Bot,
+  Database,
   Flame,
   HeartPulse,
   MessageCircle,
@@ -43,6 +44,25 @@ type DashboardMeal = {
   calories: number | null;
   time: string;
   tags: string[];
+};
+
+type RagStatus = {
+  total_documents: number;
+  embedded_documents: number;
+  missing_embeddings: number;
+  embedding_rate: number;
+  recent_50: {
+    total_documents: number;
+    embedded_documents: number;
+    missing_embeddings: number;
+  };
+  recent_failures: {
+    id: string;
+    food_record_id: string | null;
+    reason: string;
+    error_message: string | null;
+    created_at: string;
+  }[];
 };
 
 const fallbackMeals: DashboardMeal[] = [
@@ -167,6 +187,8 @@ const summaryCards = [
 export function DashboardClient() {
   const [savedMeals, setSavedMeals] = useState<DashboardMeal[]>([]);
   const [mealStatus, setMealStatus] = useState("Loading saved meals...");
+  const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
+  const [ragStatusMessage, setRagStatusMessage] = useState("Loading RAG status...");
 
   useEffect(() => {
     let isMounted = true;
@@ -208,6 +230,41 @@ export function DashboardClient() {
     }
 
     loadMeals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRagStatus() {
+      try {
+        const response = await fetchWithSupabaseAuth("/api/rag/status", {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not load RAG status.");
+        }
+
+        const payload = (await response.json()) as RagStatus;
+
+        if (isMounted) {
+          setRagStatus(payload);
+          setRagStatusMessage("RAG embedding diagnostics loaded");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setRagStatusMessage(
+            error instanceof Error ? error.message : "Could not load RAG status."
+          );
+        }
+      }
+    }
+
+    loadRagStatus();
 
     return () => {
       isMounted = false;
@@ -260,6 +317,71 @@ export function DashboardClient() {
           </Card>
         ))}
       </section>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>RAG admin status</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Embedding generation health from rag_documents
+            </p>
+          </div>
+          <Database className="h-5 w-5 text-primary" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <RagMetric
+              label="Total documents"
+              value={ragStatus?.total_documents ?? "-"}
+            />
+            <RagMetric
+              label="Embedded"
+              value={ragStatus?.embedded_documents ?? "-"}
+            />
+            <RagMetric
+              label="Missing"
+              value={ragStatus?.missing_embeddings ?? "-"}
+            />
+            <RagMetric
+              label="Embedding rate"
+              value={ragStatus ? `${ragStatus.embedding_rate}%` : "-"}
+            />
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[0.7fr_1.3fr]">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">Recent 50 documents</p>
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                <p>Total: {ragStatus?.recent_50.total_documents ?? "-"}</p>
+                <p>Embedding exists: {ragStatus?.recent_50.embedded_documents ?? "-"}</p>
+                <p>Embedding missing: {ragStatus?.recent_50.missing_embeddings ?? "-"}</p>
+              </div>
+            </div>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">Recent embedding failures</p>
+              {ragStatus?.recent_failures.length ? (
+                <div className="mt-2 space-y-2">
+                  {ragStatus.recent_failures.map((failure) => (
+                    <div key={failure.id} className="rounded-md border bg-background p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{failure.reason}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(failure.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        {failure.error_message ?? "No error message"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-muted-foreground">No recent failures logged.</p>
+              )}
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">{ragStatusMessage}</p>
+        </CardContent>
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card>
@@ -513,6 +635,15 @@ export function DashboardClient() {
           </CardContent>
         </Card>
       </section>
+    </div>
+  );
+}
+
+function RagMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-md border px-3 py-3">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
     </div>
   );
 }

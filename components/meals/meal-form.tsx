@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ const mealTypes = [
 ];
 
 export function MealForm() {
+  const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,6 +52,8 @@ export function MealForm() {
 
       event.currentTarget.reset();
       setStatus("Meal saved successfully.");
+      router.push("/dashboard");
+      router.refresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Failed to save meal.");
     } finally {

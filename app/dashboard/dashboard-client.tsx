@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   ArrowUpRight,
@@ -32,9 +33,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import type { FoodRecord } from "@/types/database";
 
-const todayMeals = [
+type DashboardMeal = {
+  id: string;
+  type: string;
+  name: string;
+  calories: number | null;
+  time: string;
+  tags: string[];
+};
+
+const fallbackMeals: DashboardMeal[] = [
   {
+    id: "sample-breakfast",
     type: "Breakfast",
     name: "Greek yogurt, berries, oats",
     calories: 420,
@@ -42,6 +54,7 @@ const todayMeals = [
     tags: ["calm", "home"]
   },
   {
+    id: "sample-lunch",
     type: "Lunch",
     name: "Chicken bibimbap",
     calories: 680,
@@ -49,6 +62,7 @@ const todayMeals = [
     tags: ["focused", "campus"]
   },
   {
+    id: "sample-snack",
     type: "Snack",
     name: "Iced latte, protein bar",
     calories: 310,
@@ -56,6 +70,7 @@ const todayMeals = [
     tags: ["tired", "study"]
   },
   {
+    id: "sample-dinner",
     type: "Dinner",
     name: "Salmon, rice, salad",
     calories: 540,
@@ -149,7 +164,55 @@ const summaryCards = [
 ];
 
 export function DashboardClient() {
-  const totalCalories = todayMeals.reduce((sum, meal) => sum + meal.calories, 0);
+  const [savedMeals, setSavedMeals] = useState<DashboardMeal[]>([]);
+  const [mealStatus, setMealStatus] = useState("Loading saved meals...");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMeals() {
+      try {
+        const response = await fetch("/api/meals", {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not load saved meals.");
+        }
+
+        const payload = (await response.json()) as { meals?: FoodRecord[] };
+        const mappedMeals = (payload.meals ?? []).slice(0, 8).map(mapFoodRecordToMeal);
+
+        if (isMounted) {
+          setSavedMeals(mappedMeals);
+          setMealStatus(
+            mappedMeals.length > 0
+              ? "Showing your saved meal records"
+              : "No saved meals yet, showing sample dashboard data"
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setMealStatus("Unable to load saved meals, showing sample dashboard data");
+        }
+      }
+    }
+
+    loadMeals();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const todayMeals = useMemo(
+    () => (savedMeals.length > 0 ? savedMeals : fallbackMeals),
+    [savedMeals]
+  );
+  const totalCalories = todayMeals.reduce(
+    (sum, meal) => sum + (meal.calories ?? 0),
+    0
+  );
 
   return (
     <div className="space-y-5">
@@ -195,15 +258,18 @@ export function DashboardClient() {
             <div>
               <CardTitle>Today&apos;s meals</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                {totalCalories.toLocaleString()} kcal logged across {todayMeals.length} meals
+                {savedMeals.length > 0
+                  ? `${todayMeals.length} saved meals, ${totalCalories.toLocaleString()} analyzed kcal`
+                  : `${totalCalories.toLocaleString()} kcal logged across ${todayMeals.length} sample meals`}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">{mealStatus}</p>
             </div>
             <Utensils className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent className="space-y-3">
             {todayMeals.map((meal) => (
               <div
-                key={`${meal.type}-${meal.time}`}
+                key={meal.id}
                 className="grid gap-3 rounded-md border p-3 sm:grid-cols-[88px_1fr_auto] sm:items-center"
               >
                 <div className="text-sm font-medium">{meal.time}</div>
@@ -226,7 +292,7 @@ export function DashboardClient() {
                   </div>
                 </div>
                 <div className="text-sm font-semibold sm:text-right">
-                  {meal.calories} kcal
+                  {meal.calories === null ? "Pending analysis" : `${meal.calories} kcal`}
                 </div>
               </div>
             ))}
@@ -440,6 +506,36 @@ export function DashboardClient() {
       </section>
     </div>
   );
+}
+
+function mapFoodRecordToMeal(record: FoodRecord): DashboardMeal {
+  const eatenAt = new Date(record.eaten_at);
+  const time = Number.isNaN(eatenAt.getTime())
+    ? "--:--"
+    : eatenAt.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+
+  return {
+    id: record.id,
+    type: formatMealType(record.meal_type),
+    name: record.raw_text ?? record.memo ?? "Saved meal",
+    calories: null,
+    time,
+    tags: [record.input_type, "saved"]
+  };
+}
+
+function formatMealType(mealType: FoodRecord["meal_type"]) {
+  if (!mealType) {
+    return "Meal";
+  }
+
+  return mealType
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function SignalRow({

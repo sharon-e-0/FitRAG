@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bot, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,7 @@ type CoachResponse = {
 };
 
 export function CoachClient() {
+  const router = useRouter();
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [retrievedDocuments, setRetrievedDocuments] = useState<RagSearchResult[]>([]);
@@ -62,7 +64,8 @@ export function CoachClient() {
       const payload = await response.json();
 
       if (response.status === 401) {
-        setStatus("Your session has expired. Please log in again.");
+        setStatus("Your login session is missing. Please log in again to use the coach.");
+        router.push("/login?next=/coach");
         return;
       }
 

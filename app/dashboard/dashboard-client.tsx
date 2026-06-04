@@ -33,9 +33,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { predictWeight } from "@/lib/prediction/weight";
 import { fetchWithSupabaseAuth } from "@/lib/supabase/auth-fetch";
 import { cn } from "@/lib/utils";
-import type { FoodRecord } from "@/types/database";
+import type {
+  FoodRecord,
+  HealthConnectDailySummary,
+  UserProfile,
+  WeightLog
+} from "@/types/database";
 
 type DashboardMeal = {
   id: string;
@@ -181,7 +187,7 @@ const fallbackNutrientData = [
   { name: "Sugar", value: 42, target: 50, color: chartColors.violet }
 ];
 
-const weightPredictionData = [
+const fallbackWeightPredictionData = [
   { day: "Today", actual: 68.2, predicted: 68.2 },
   { day: "7d", predicted: 67.9 },
   { day: "14d", predicted: 67.5 },
@@ -254,6 +260,12 @@ export function DashboardClient() {
   const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
   const [ragStatusMessage, setRagStatusMessage] = useState("Loading RAG status...");
   const [isRefreshingRagStatus, setIsRefreshingRagStatus] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [todayActivitySummary, setTodayActivitySummary] =
+    useState<HealthConnectDailySummary | null>(null);
+  const [weightPredictionStatus, setWeightPredictionStatus] =
+    useState("Loading profile and activity data...");
 
   const loadRagStatus = useCallback(async () => {
     setIsRefreshingRagStatus(true);
@@ -335,6 +347,58 @@ export function DashboardClient() {
     loadRagStatus();
   }, [loadRagStatus]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPredictionInputs() {
+      try {
+        const [profileResponse, weightResponse] = await Promise.all([
+          fetchWithSupabaseAuth("/api/profile", { cache: "no-store" }),
+          fetchWithSupabaseAuth("/api/weight-logs", { cache: "no-store" })
+        ]);
+
+        if (profileResponse.status === 401 || weightResponse.status === 401) {
+          throw new Error("Login is required to load weight prediction.");
+        }
+
+        if (!profileResponse.ok || !weightResponse.ok) {
+          throw new Error("Could not load weight prediction inputs.");
+        }
+
+        const profilePayload = (await profileResponse.json()) as {
+          profile?: UserProfile | null;
+        };
+        const weightPayload = (await weightResponse.json()) as {
+          weight_logs?: WeightLog[];
+          today_activity_summary?: HealthConnectDailySummary | null;
+        };
+
+        if (!isMounted) {
+          return;
+        }
+
+        setUserProfile(profilePayload.profile ?? null);
+        setWeightLogs(weightPayload.weight_logs ?? []);
+        setTodayActivitySummary(weightPayload.today_activity_summary ?? null);
+        setWeightPredictionStatus("Weight forecast uses saved profile, latest weight, and today's exercise calories.");
+      } catch (error) {
+        if (isMounted) {
+          setWeightPredictionStatus(
+            error instanceof Error
+              ? error.message
+              : "Could not load weight prediction inputs."
+          );
+        }
+      }
+    }
+
+    loadPredictionInputs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const todayMeals = useMemo(
     () => (savedMeals.length > 0 ? savedMeals : fallbackMeals),
     [savedMeals]
@@ -357,6 +421,52 @@ export function DashboardClient() {
     (sum, meal) => sum + (meal.calories ?? 0),
     0
   );
+  const dashboardWeightPrediction = useMemo(() => {
+    const latestWeightLog = weightLogs[0];
+
+    if (!latestWeightLog || !userProfile?.height_cm || !userProfile?.age) {
+      return null;
+    }
+
+    try {
+      const result = predictWeight({
+        sex: userProfile.gender === "male" ? "male" : "female",
+        age: Number(userProfile.age),
+        heightCm: Number(userProfile.height_cm),
+        currentWeightKg: Number(latestWeightLog.weight_kg),
+        targetWeightKg: userProfile.target_weight_kg
+          ? Number(userProfile.target_weight_kg)
+          : undefined,
+        activityLevel: "moderate",
+        avgDailyIntakeCalories: totalCalories > 0 ? totalCalories : 1950,
+        avgDailyExerciseCalories: Number(todayActivitySummary?.active_calories ?? 0),
+        startDate: new Date()
+      });
+
+      return {
+        result,
+        activeCalories: Number(todayActivitySummary?.active_calories ?? 0),
+        data: [
+          {
+            day: "Today",
+            actual: Number(latestWeightLog.weight_kg),
+            predicted: Number(latestWeightLog.weight_kg)
+          },
+          ...result.points
+            .filter((point) => [7, 14, 21, 30].includes(point.day))
+            .map((point) => ({
+              day: `${point.day}d`,
+              predicted: point.predictedWeightKg
+            }))
+        ]
+      };
+    } catch {
+      return null;
+    }
+  }, [totalCalories, todayActivitySummary, userProfile, weightLogs]);
+  const weightPredictionChartData =
+    dashboardWeightPrediction?.data ?? fallbackWeightPredictionData;
+  const weightPredictionDomain = getWeightPredictionDomain(weightPredictionChartData);
 
   return (
     <div className="space-y-8">
@@ -648,12 +758,16 @@ export function DashboardClient() {
               </span>
               Weight prediction
             </CardTitle>
-            <p className="text-sm text-muted-foreground">Rule-based 30 day forecast</p>
+            <p className="text-sm text-muted-foreground">
+              {dashboardWeightPrediction
+                ? `TDEE ${dashboardWeightPrediction.result.tdee} kcal includes ${dashboardWeightPrediction.activeCalories.toFixed(0)} kcal exercise burn.`
+                : weightPredictionStatus}
+            </p>
           </CardHeader>
           <CardContent>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weightPredictionData} margin={{ left: -18, right: 16, top: 8 }}>
+                <LineChart data={weightPredictionChartData} margin={{ left: -18, right: 16, top: 8 }}>
                   <CartesianGrid
                     vertical={false}
                     stroke={chartColors.beige}
@@ -666,7 +780,7 @@ export function DashboardClient() {
                     tick={{ fill: chartColors.toast, fontSize: 12 }}
                   />
                   <YAxis
-                    domain={[66, 69]}
+                    domain={weightPredictionDomain}
                     tickLine={false}
                     axisLine={false}
                     tick={{ fill: chartColors.toast, fontSize: 12 }}
@@ -940,6 +1054,25 @@ function getRecentSevenDays() {
       label: formatter.format(date)
     };
   });
+}
+
+function getWeightPredictionDomain(
+  data: { actual?: number; predicted?: number }[]
+): [number, number] {
+  const values = data.flatMap((point) =>
+    [point.actual, point.predicted].filter(
+      (value): value is number => typeof value === "number" && Number.isFinite(value)
+    )
+  );
+
+  if (values.length === 0) {
+    return [60, 80];
+  }
+
+  return [
+    Math.floor(Math.min(...values) - 1),
+    Math.ceil(Math.max(...values) + 1)
+  ];
 }
 
 function formatMealType(mealType: FoodRecord["meal_type"]) {

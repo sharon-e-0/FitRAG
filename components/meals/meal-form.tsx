@@ -265,6 +265,12 @@ export function MealForm() {
           : "Analysis completed. Review and edit the values before final save."
       );
     } catch (error) {
+      if (error instanceof AuthRequiredError) {
+        setStatus("Your login session is missing. Please log in again before analyzing meals.");
+        router.push("/login?next=/meals/new");
+        return;
+      }
+
       setStatus(error instanceof Error ? error.message : "Failed to analyze meal.");
     } finally {
       setIsAnalyzing(false);
@@ -561,7 +567,7 @@ async function runMealAnalysis(foodName: string, image: File | null) {
   const payload = await response.json();
 
   if (response.status === 401) {
-    throw new Error("Your session has expired. Please log in again.");
+    throw new AuthRequiredError();
   }
 
   if (!response.ok) {
@@ -697,4 +703,10 @@ function getAnalyzeButtonLabel(isProcessingImage: boolean, isAnalyzing: boolean)
   }
 
   return "AI 분석 및 확인";
+}
+
+class AuthRequiredError extends Error {
+  constructor() {
+    super("Authentication is required.");
+  }
 }

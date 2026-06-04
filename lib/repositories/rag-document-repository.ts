@@ -25,7 +25,7 @@ export class RagDocumentRepository {
 
     const { data: analysisResults, error: analysisError } = await this.supabase
       .from("food_analysis_results")
-      .select("food_name,serving_description,calories,carbohydrate_g,protein_g,fat_g,sugar_g,sodium_mg")
+      .select("food_name,serving_description,analysis_source,calories,carbohydrate_g,protein_g,fat_g,sugar_g,sodium_mg")
       .eq("food_record_id", foodRecordId)
       .eq("user_id", userId)
       .returns<FoodAnalysisForEmbedding[]>();
@@ -54,6 +54,23 @@ export class RagDocumentRepository {
     }
 
     return data;
+  }
+
+  async deleteFoodRecordDocuments(foodRecordIds: string[], userId: string) {
+    if (foodRecordIds.length === 0) {
+      return;
+    }
+
+    const { error } = await this.supabase
+      .from("rag_documents")
+      .delete()
+      .eq("user_id", userId)
+      .eq("source_type", "food_record")
+      .in("source_id", foodRecordIds);
+
+    if (error) {
+      throw error;
+    }
   }
 
   async searchSimilar(params: {

@@ -66,6 +66,7 @@ export type FoodRecordForEmbedding = {
 export type FoodAnalysisForEmbedding = {
   food_name: string;
   serving_description: string | null;
+  analysis_source: "gemini" | "fallback" | null;
   calories: number | null;
   carbohydrate_g: number | null;
   protein_g: number | null;

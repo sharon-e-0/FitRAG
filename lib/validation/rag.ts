@@ -16,6 +16,10 @@ export const embedFoodRecordSchema = z.object({
   food_record_id: z.string().uuid()
 });
 
+export const reEmbedFoodRecordsSchema = z.object({
+  food_record_ids: z.array(z.string().uuid()).min(1).max(50)
+});
+
 export const ragSearchSchema = z.object({
   query: z.string().trim().min(1).max(1000),
   match_count: z.number().int().min(1).max(20).optional(),

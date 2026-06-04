@@ -93,6 +93,7 @@ export async function POST(request: Request) {
           food_record_id: data.id,
           user_id: user.id,
           food_name: body.analysis.food_name,
+          analysis_source: body.analysis.analysis_source ?? "gemini",
           calories: body.analysis.calories,
           carbohydrate_g: body.analysis.carbs,
           protein_g: body.analysis.protein,

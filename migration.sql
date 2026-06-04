@@ -43,6 +43,7 @@ create table if not exists public.food_analysis_results (
   food_record_id uuid not null references public.food_records(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   food_name text not null,
+  analysis_source text check (analysis_source in ('gemini', 'fallback')),
   serving_description text,
   calories numeric(8,2) check (calories >= 0),
   carbohydrate_g numeric(8,2) check (carbohydrate_g >= 0),
@@ -203,6 +204,9 @@ on public.food_analysis_results (food_record_id);
 
 create index if not exists idx_food_analysis_results_user
 on public.food_analysis_results (user_id);
+
+create index if not exists idx_food_analysis_results_source
+on public.food_analysis_results (user_id, analysis_source);
 
 create index if not exists idx_emotion_tags_user
 on public.emotion_tags (user_id);

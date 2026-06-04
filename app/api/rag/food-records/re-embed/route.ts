@@ -5,14 +5,13 @@ import { logEmbeddingFailure } from "@/lib/services/embedding-failure-log-servic
 import { FoodRecordEmbeddingService } from "@/lib/services/food-record-embedding-service";
 import { getAuthenticatedUser } from "@/lib/supabase/auth-user";
 import { createClient } from "@/lib/supabase/server";
-import { embedFoodRecordSchema } from "@/lib/validation/rag";
+import { reEmbedFoodRecordsSchema } from "@/lib/validation/rag";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const supabase = createClient();
   let userId: string | null = null;
-  let foodRecordId: string | null = null;
 
   try {
     const { user, error: authError } = await getAuthenticatedUser(supabase, request);
@@ -22,14 +21,16 @@ export async function POST(request: Request) {
     }
 
     userId = user.id;
-    const body = embedFoodRecordSchema.parse(await request.json());
-    foodRecordId = body.food_record_id;
+    const body = reEmbedFoodRecordsSchema.parse(await request.json());
+    const foodRecordIds = Array.from(new Set(body.food_record_ids));
     const repository = new RagDocumentRepository(supabase);
     const service = new FoodRecordEmbeddingService(repository);
-    const result = await service.embedAndStore(body.food_record_id, user.id);
+    const results = await service.reEmbed(foodRecordIds, user.id);
 
     return NextResponse.json({
-      result
+      requested_count: body.food_record_ids.length,
+      processed_count: foodRecordIds.length,
+      results
     });
   } catch (error) {
     if (error instanceof ZodError) {
@@ -39,18 +40,18 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error("[rag-food-record-embed]", error);
+    console.error("[rag-food-record-re-embed]", error);
 
     if (userId) {
       await logEmbeddingFailure(supabase, {
         userId,
-        foodRecordId,
+        foodRecordId: null,
         error
       });
     }
 
     return NextResponse.json(
-      { error: "Failed to embed food record." },
+      { error: "Failed to re-embed food records." },
       { status: 500 }
     );
   }

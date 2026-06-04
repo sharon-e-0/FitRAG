@@ -9,15 +9,28 @@ export class FoodRecordEmbeddingService {
   async embedAndStore(foodRecordId: string, userId: string) {
     const { foodRecord, analysisResults } =
       await this.ragRepository.findFoodRecordForEmbedding(foodRecordId, userId);
+    const reliableAnalysisResults = analysisResults.filter(
+      (result) => result.analysis_source !== "fallback"
+    );
 
-    const content = buildFoodRecordDocument(foodRecord, analysisResults);
+    if (analysisResults.length > 0 && reliableAnalysisResults.length === 0) {
+      await this.ragRepository.deleteFoodRecordDocuments([foodRecord.id], userId);
+
+      return {
+        skipped: true,
+        reason: "fallback_analysis_excluded",
+        food_record_id: foodRecord.id
+      };
+    }
+
+    const content = buildFoodRecordDocument(foodRecord, reliableAnalysisResults);
     const embedding = await embedText(content, "RETRIEVAL_DOCUMENT");
 
-    return this.ragRepository.upsertDocument({
+    const document = await this.ragRepository.upsertDocument({
       user_id: userId,
       source_type: "food_record",
       source_id: foodRecord.id,
-      title: buildFoodRecordTitle(foodRecord, analysisResults),
+      title: buildFoodRecordTitle(foodRecord, reliableAnalysisResults),
       content,
       metadata: {
         meal_type: foodRecord.meal_type,
@@ -25,12 +38,40 @@ export class FoodRecordEmbeddingService {
         context: foodRecord.context,
         input_type: foodRecord.input_type,
         eaten_at: foodRecord.eaten_at,
-        food_names: analysisResults.map((result) => result.food_name)
+        food_names: reliableAnalysisResults.map((result) => result.food_name),
+        excluded_fallback_analysis_count:
+          analysisResults.length - reliableAnalysisResults.length
       },
       embedding: toPgVector(embedding),
       embedding_model: EMBEDDING_MODEL,
       content_hash: hashContent(content)
     });
+
+    return {
+      skipped: false,
+      document
+    };
+  }
+
+  async reEmbed(foodRecordIds: string[], userId: string) {
+    await this.ragRepository.deleteFoodRecordDocuments(foodRecordIds, userId);
+
+    const results = [];
+
+    for (const foodRecordId of foodRecordIds) {
+      try {
+        results.push(await this.embedAndStore(foodRecordId, userId));
+      } catch (error) {
+        results.push({
+          skipped: true,
+          reason: "embedding_failed",
+          food_record_id: foodRecordId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    return results;
   }
 }
 
